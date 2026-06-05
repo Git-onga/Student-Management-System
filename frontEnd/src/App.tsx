@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
-import { Routes, Route, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import { StreamDetailPage } from './pages/StreamDetailPage';
+import { SubjectDetailPage } from './pages/SubjectDetailPage';
 import { Dashboard } from './pages/Dashboard';
 import { Streams } from './pages/Streams';
 import { Students } from './pages/Students';
@@ -11,6 +12,24 @@ import { Book, Users, BookOpen, GraduationCap, Edit3 } from 'lucide-react';
 const App: React.FC = () => {
   const [activePage, setActivePage] = useState('dashboard');
   const navigate = useNavigate();
+  const location = useLocation();
+
+  useEffect(() => {
+    const segment = location.pathname.split('/')[1]?.toLowerCase();
+    if (segment) {
+      if (segment === 'subjects' || segment.startsWith('subject-detail')) {
+        setActivePage('subjects');
+      } else if (segment === 'streams' || segment.startsWith('stream-detail')) {
+        setActivePage('streams');
+      } else if (segment === 'students') {
+        setActivePage('students');
+      } else if (segment === 'assessments') {
+        setActivePage('assessments');
+      } else if (segment === 'dashboard') {
+        setActivePage('dashboard');
+      }
+    }
+  }, [location]);
 
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: <Book size={18} /> },
@@ -76,6 +95,7 @@ const App: React.FC = () => {
             <Route path="/subjects" element={<Subjects />} />
             <Route path="/assessments" element={<Assessments />} />
             <Route path="/stream-detail/:streamId" element={<StreamDetailPage />} />
+            <Route path="/subject-detail/:subjectId" element={<SubjectDetailPage />} />
             <Route path="*" element={renderPage()} />
           </Routes>
         </main>

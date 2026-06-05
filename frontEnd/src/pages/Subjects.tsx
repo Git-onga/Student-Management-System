@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { db, type Subject, type Stream } from '../services/db';
 import { BookOpen, Plus, Edit, Trash2, X, GraduationCap } from 'lucide-react';
 
 export const Subjects: React.FC = () => {
+  const navigate = useNavigate();
   const [subjects, setSubjects] = useState<Subject[]>(db.getSubjects());
   const [streams] = useState<Stream[]>(db.getStreams());
   const [showFormModal, setShowFormModal] = useState(false);
@@ -57,6 +59,7 @@ export const Subjects: React.FC = () => {
           code: code.toUpperCase(),
           name,
           description,
+          teachers: []
         });
       }
       setSubjects(db.getSubjects());
@@ -104,7 +107,12 @@ export const Subjects: React.FC = () => {
           const assignedClassNames = getAssignedStreamsForSubject(sub.id);
 
           return (
-            <div key={sub.id} className="panel" style={{ display: 'flex', flexDirection: 'column', height: '100%', marginBottom: 0 }}>
+            <div 
+              key={sub.id} 
+              className="panel panel-clickable" 
+              style={{ display: 'flex', flexDirection: 'column', height: '100%', marginBottom: 0 }}
+              onClick={() => navigate(`/subject-detail/${sub.id}`)}
+            >
               <div style={{ display: 'flex', justifySelf: 'stretch', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '1px solid var(--border-color)', paddingBottom: '12px', marginBottom: '14px' }}>
                 <div>
                   <span style={{ fontSize: '11px', fontWeight: 'bold', color: 'var(--color-secondary)', background: 'rgba(6, 182, 212, 0.08)', padding: '2px 8px', borderRadius: '4px' }}>
@@ -114,10 +122,24 @@ export const Subjects: React.FC = () => {
                 </div>
 
                 <div style={{ display: 'flex', gap: '6px' }}>
-                  <button className="btn btn-secondary" style={{ padding: '6px 10px' }} onClick={() => handleOpenEdit(sub)}>
+                  <button 
+                    className="btn btn-secondary" 
+                    style={{ padding: '6px 10px' }} 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleOpenEdit(sub);
+                    }}
+                  >
                     <Edit size={13} />
                   </button>
-                  <button className="btn btn-danger" style={{ padding: '6px 10px' }} onClick={() => handleDeleteSubject(sub.id)}>
+                  <button 
+                    className="btn btn-danger" 
+                    style={{ padding: '6px 10px' }} 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeleteSubject(sub.id);
+                    }}
+                  >
                     <Trash2 size={13} />
                   </button>
                 </div>

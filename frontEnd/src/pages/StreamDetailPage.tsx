@@ -15,10 +15,10 @@ export const StreamDetailPage: React.FC = () => {
   const [searchStudentQuery, setSearchStudentQuery] = React.useState('');
 
   React.useEffect(() => {
-    if (stream) {
-      setAssignedSubjectIds(db.getSubjectsByStream(stream.id).map(s => s.id));
+    if (streamId) {
+      setAssignedSubjectIds(db.getSubjectsByStream(streamId).map(s => s.id));
     }
-  }, [stream]);
+  }, [streamId]);
 
   const handleOpenStreamDetails = (stream: Stream) => {
     navigate(`/stream-detail/${stream.id}`);

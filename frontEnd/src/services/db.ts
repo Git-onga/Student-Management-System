@@ -25,6 +25,7 @@ export interface Subject {
   code: string;
   name: string;
   description: string;
+  teachers: string[];
 }
 
 export interface StreamSubject {
@@ -41,6 +42,14 @@ export interface Score {
   term: string;
 }
 
+export interface Teacher {
+  id: string;
+  empID: string;
+  name: string;
+  subjectId: string;
+  telephone: string;
+}
+
 export interface GradingScale {
   grade: string;
   minScore: number;
@@ -54,6 +63,7 @@ const STORAGE_KEYS = {
   SUBJECTS: 'ikx_subjects',
   STREAM_SUBJECTS: 'ikx_stream_subjects',
   SCORES: 'ikx_scores',
+  TEACHERS: 'ikx_teachers',
   GRADING_SCALE: 'ikx_grading_scale',
   INITIALIZED: 'ikx_initialized',
 };
@@ -78,13 +88,37 @@ const DEFAULT_STREAMS: Stream[] = [
   { id: 'str-16', name: 'Form 4 Yale', classTeacher: 'Ms. Juma', telephone: '0745657883', subject: 'Physics', empID: 'Tch116', classCaptain: 'Faith Juma', admNo: 'St045' },
 ];
 
+const DEFAULT_TEACHERS: Teacher[] = [
+  { id: 'tch-1', empID: 'Tch101', name: 'Mr. Kamau', subjectId: 'sub-1', telephone: '0725658989' },
+  { id: 'tch-2', empID: 'Tch102', name: 'Mrs. Ann', subjectId: 'sub-2', telephone: '0712345566' },
+  { id: 'tch-3', empID: 'Tch103', name: 'Mr. Kariuki', subjectId: 'sub-7', telephone: '0723131344' },
+  { id: 'tch-4', empID: 'Tch104', name: 'Mrs. Biwott', subjectId: 'sub-8', telephone: '0745657878' },
+  { id: 'tch-5', empID: 'Tch105', name: 'Mr. Ochieng', subjectId: 'sub-1', telephone: '079314813' },
+  { id: 'tch-6', empID: 'Tch106', name: 'Mrs. Atieno', subjectId: 'sub-2', telephone: '0734218965' },
+  { id: 'tch-7', empID: 'Tch107', name: 'Mr. Bundi', subjectId: 'sub-7', telephone: '0712345568' },
+  { id: 'tch-8', empID: 'Tch108', name: 'Mrs. Komen', subjectId: 'sub-9', telephone: '0745657880' },
+  { id: 'tch-9', empID: 'Tch109', name: 'Mr. Kimani', subjectId: 'sub-10', telephone: '0712345901' },
+  { id: 'tch-10', empID: 'Tch110', name: 'Mrs. Chebet', subjectId: 'sub-2', telephone: '0734218562' },
+  { id: 'tch-11', empID: 'Tch111', name: 'Mr. Juma', subjectId: 'sub-7', telephone: '0712345579' },
+  { id: 'tch-12', empID: 'Tch112', name: 'Ms. Juma', subjectId: 'sub-11', telephone: '0745657883' },
+  { id: 'tch-13', empID: 'Tch113', name: 'Mr. Kimani', subjectId: 'sub-1', telephone: '0712345901' },
+  { id: 'tch-14', empID: 'Tch114', name: 'Mrs. Chebet', subjectId: 'sub-11', telephone: '0734218562' },
+  { id: 'tch-15', empID: 'Tch115', name: 'Mr. Juma', subjectId: 'sub-7', telephone: '0712345579' },
+  { id: 'tch-16', empID: 'Tch116', name: 'Ms. Juma', subjectId: 'sub-8', telephone: '0745657883' },
+];
+
 const DEFAULT_SUBJECTS: Subject[] = [
-  { id: 'sub-1', code: 'MATH101', name: 'Mathematics', description: 'Core Mathematics covering Algebra, Geometry, and Statistics' },
-  { id: 'sub-2', code: 'ENG101', name: 'English Language', description: 'Grammar, composition, literature analysis, and comprehension' },
-  { id: 'sub-3', code: 'SCI101', name: 'Integrated Science', description: 'Introductory Physics, Chemistry, Biology, and Earth Sciences' },
-  { id: 'sub-4', code: 'SOC101', name: 'Social Studies', description: 'History, geography, citizenship, and global studies' },
-  { id: 'sub-5', code: 'COMP101', name: 'Computer Studies', description: 'Introduction to computing, office suites, and programming logic' },
-  { id: 'sub-6', code: 'BUS101', name: 'Business Studies', description: 'Introductory bookkeeping, commerce, and entrepreneurship' },
+  { id: 'sub-1', code: 'MATH101', name: 'Mathematics', description: 'Core Mathematics covering Algebra, Geometry, and Statistics', teachers: ['Tch101', 'Tch105', 'Tch113'] },
+  { id: 'sub-2', code: 'ENG101', name: 'English Language', description: 'Grammar, composition, literature analysis, and comprehension', teachers: ['Tch102', 'Tch106', 'Tch110'] },
+  { id: 'sub-3', code: 'SCI101', name: 'Integrated Science', description: 'Introductory Physics, Chemistry, Biology, and Earth Sciences', teachers: [] },
+  { id: 'sub-4', code: 'SOC101', name: 'Social Studies', description: 'History, geography, citizenship, and global studies', teachers: [] },
+  { id: 'sub-5', code: 'COMP101', name: 'Computer Studies', description: 'Introduction to computing, office suites, and programming logic', teachers: [] },
+  { id: 'sub-6', code: 'BUS101', name: 'Business Studies', description: 'Introductory bookkeeping, commerce, and entrepreneurship', teachers: [] },
+  { id: 'sub-7', code: 'KIS101', name: 'Kiswahili', description: 'Kiswahili language, grammar, fasihi, and oral literature', teachers: ['Tch103', 'Tch107', 'Tch111', 'Tch115'] },
+  { id: 'sub-8', code: 'PHY101', name: 'Physics', description: 'Mechanics, electricity, magnetism, waves, and thermodynamics', teachers: ['Tch104', 'Tch116'] },
+  { id: 'sub-9', code: 'HIS101', name: 'History', description: 'World and African history, governance, and civilizations', teachers: ['Tch108'] },
+  { id: 'sub-10', code: 'BIO101', name: 'Biology', description: 'Cell biology, genetics, ecology, and human anatomy', teachers: ['Tch109'] },
+  { id: 'sub-11', code: 'CHEM101', name: 'Chemistry', description: 'Organic, inorganic, and physical chemistry fundamentals', teachers: ['Tch112', 'Tch114'] },
 ];
 
 const DEFAULT_STREAM_SUBJECTS: StreamSubject[] = [
@@ -229,13 +263,23 @@ const setLocalStorage = <T>(key: string, value: T): void => {
 };
 
 export const initializeDB = (force = false): void => {
-  if (localStorage.getItem(STORAGE_KEYS.INITIALIZED) && !force) return;
+  const hasInitialized = localStorage.getItem(STORAGE_KEYS.INITIALIZED);
+  const hasTeachers = localStorage.getItem(STORAGE_KEYS.TEACHERS);
+
+  if (hasInitialized && hasTeachers && !force) return;
+
+  if (hasInitialized && !hasTeachers && !force) {
+    setLocalStorage(STORAGE_KEYS.TEACHERS, DEFAULT_TEACHERS);
+    setLocalStorage(STORAGE_KEYS.SUBJECTS, DEFAULT_SUBJECTS);
+    return;
+  }
 
   setLocalStorage(STORAGE_KEYS.STREAMS, DEFAULT_STREAMS);
   setLocalStorage(STORAGE_KEYS.SUBJECTS, DEFAULT_SUBJECTS);
   setLocalStorage(STORAGE_KEYS.STREAM_SUBJECTS, DEFAULT_STREAM_SUBJECTS);
   setLocalStorage(STORAGE_KEYS.STUDENTS, DEFAULT_STUDENTS);
   setLocalStorage(STORAGE_KEYS.SCORES, DEFAULT_SCORES);
+  setLocalStorage(STORAGE_KEYS.TEACHERS, DEFAULT_TEACHERS);
   setLocalStorage(STORAGE_KEYS.GRADING_SCALE, DEFAULT_GRADING_SCALE);
   localStorage.setItem(STORAGE_KEYS.INITIALIZED, 'true');
 };
@@ -455,6 +499,37 @@ export const db = {
       }
     }
     setLocalStorage(STORAGE_KEYS.GRADING_SCALE, scale);
+  },
+
+  // Teachers
+  getTeachers: (): Teacher[] => getLocalStorage<Teacher[]>(STORAGE_KEYS.TEACHERS, []),
+  getTeacher: (id: string): Teacher | undefined => db.getTeachers().find(t => t.id === id),
+  getTeacherByEmpID: (empID: string): Teacher | undefined => db.getTeachers().find(t => t.empID === empID),
+  getTeachersBySubject: (subjectId: string): Teacher[] => db.getTeachers().filter(t => t.subjectId === subjectId),
+  createTeacher: (teacher: Omit<Teacher, 'id'>): Teacher => {
+    const teachers = db.getTeachers();
+    const newTeacher = { ...teacher, id: `tch-${Date.now()}` };
+    if (teachers.some(t => t.empID.toLowerCase() === teacher.empID.toLowerCase())) {
+      throw new Error(`Teacher with Employee ID "${teacher.empID}" already exists.`);
+    }
+    teachers.push(newTeacher);
+    setLocalStorage(STORAGE_KEYS.TEACHERS, teachers);
+    return newTeacher;
+  },
+  updateTeacher: (id: string, updatedData: Partial<Teacher>): Teacher => {
+    const teachers = db.getTeachers();
+    const index = teachers.findIndex(t => t.id === id);
+    if (index === -1) throw new Error('Teacher not found');
+    if (updatedData.empID && teachers.some(t => t.id !== id && t.empID.toLowerCase() === updatedData.empID!.toLowerCase())) {
+      throw new Error(`Teacher with Employee ID "${updatedData.empID}" already exists.`);
+    }
+    teachers[index] = { ...teachers[index], ...updatedData };
+    setLocalStorage(STORAGE_KEYS.TEACHERS, teachers);
+    return teachers[index];
+  },
+  deleteTeacher: (id: string): void => {
+    const teachers = db.getTeachers().filter(t => t.id !== id);
+    setLocalStorage(STORAGE_KEYS.TEACHERS, teachers);
   },
 
   // Reset function
