@@ -1,16 +1,18 @@
 import React, { useState } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, useNavigate } from 'react-router-dom';
+import { StreamDetailPage } from './pages/StreamDetailPage';
 import { Dashboard } from './pages/Dashboard';
 import { Streams } from './pages/Streams';
 import { Students } from './pages/Students';
 import { Subjects } from './pages/Subjects';
 import { Assessments } from './pages/Assessments';
-import { Book, Users, BookOpen, GraduationCap, Edit3, Calendar } from 'lucide-react';
+import { Book, Users, BookOpen, GraduationCap, Edit3 } from 'lucide-react';
 
 const App: React.FC = () => {
   const [activePage, setActivePage] = useState('dashboard');
+  const navigate = useNavigate();
 
-  const navItems: { id: string; label: string; icon: React.ReactNode }[] = [
+  const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: <Book size={18} /> },
     { id: 'streams', label: 'Class Streams', icon: <GraduationCap size={18} /> },
     { id: 'students', label: 'Students', icon: <Users size={18} /> },
@@ -36,7 +38,7 @@ const App: React.FC = () => {
   };
 
   return (
-    <Router>
+    <>
       <div className="app-shell">
         {/* Sidebar */}
         <aside className="app-sidebar">
@@ -52,25 +54,37 @@ const App: React.FC = () => {
               <li
                 key={item.id}
                 className={`nav-item ${activePage === item.id ? 'active' : ''}`}
-                onClick={() => setActivePage(item.id)}
+                onClick={() => {
+                  setActivePage(item.id);
+                  navigate(`/${item.id}`);
+                }}
               >
                 {item.icon}
                 <span>{item.label}</span>
               </li>
             ))}
           </ul>
-          <div className="sidebar-footer">
-            © {new Date().getFullYear()} Ikonex Academy
-          </div>
+          <div className="sidebar-footer">© {new Date().getFullYear()} Ikonex Academy</div>
         </aside>
 
         {/* Main Content */}
         <main className="app-content">
-          {renderPage()}
+          <Routes>
+            <Route path="/dashboard" element={<Dashboard onNavigate={setActivePage} />} />
+            <Route path="/streams" element={<Streams />} />
+            <Route path="/students" element={<Students />} />
+            <Route path="/subjects" element={<Subjects />} />
+            <Route path="/assessments" element={<Assessments />} />
+            <Route path="/stream-detail/:streamId" element={<StreamDetailPage />} />
+            <Route path="*" element={renderPage()} />
+          </Routes>
         </main>
       </div>
-    </Router>
+    </>
   );
 };
+
 export default App;
+
+
 
