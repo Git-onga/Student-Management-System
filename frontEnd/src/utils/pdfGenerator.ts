@@ -1,7 +1,7 @@
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { db } from '../services/db';
-import { getStudentAcademicReport, getStreamRankings } from './academicEngine';
+import { getStudentAcademicReport, getStreamRankings, getGradeForScore } from './academicEngine';
 
 // Colors for branding
 const PRIMARY_COLOR = [79, 70, 229] as const; // #4f46e5 - Indigo
@@ -303,4 +303,172 @@ export const generateClassPerformancePDF = (streamId: string, term = 'Term 1 202
 
   const filename = `Class_Performance_${stream.name.replace(/\s+/g, '_')}_${term.replace(/\s+/g, '_')}.pdf`;
   doc.save(filename);
+};
+
+// ─── Subject Mean & Performance Report ────────────────────────────────────────
+export const generateSubjectMeanPDF = (subjectId: string, term = 'Term 1 2026'): void => {
+  const subject = db.getSubjects().find(s => s.id === subjectId);
+  if (!subject) { alert('Subject not found.'); return; }
+
+  const allScores = db.getScoresRaw().filter(sc => sc.subjectId === subjectId && sc.term === term);
+  if (allScores.length === 0) { alert(`No scores recorded for ${subject.name} in ${term}.`); return; }
+
+  const allStudents = db.getStudents();
+  const allStreams = db.getStreams();
+  const scale = db.getGradingScale();
+
+  const rows = allScores.map(sc => {
+    const student = allStudents.find(st => st.id === sc.studentId);
+    const stream = student ? allStreams.find(str => str.id === student.streamId) : null;
+    const total = sc.caScore + sc.examScore;
+    const { grade, remark } = getGradeForScore(total, scale);
+    return {
+      admNo: student?.admissionNumber || 'N/A',
+      name: student ? `${student.firstName} ${student.lastName}` : 'Unknown',
+      stream: stream?.name || '-',
+      ca: sc.caScore,
+      exam: sc.examScore,
+      total,
+      grade,
+      remark,
+    };
+  }).sort((a, b) => b.total - a.total);
+
+  const totalMean = rows.reduce((s, r) => s + r.total, 0) / rows.length;
+  const passed = rows.filter(r => r.total >= 40).length;
+
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const pageWidth = doc.internal.pageSize.getWidth();
+
+  doc.setFillColor(PRIMARY_COLOR[0], PRIMARY_COLOR[1], PRIMARY_COLOR[2]);
+  doc.rect(0, 0, pageWidth, 38, 'F');
+  doc.setFillColor(SECONDARY_COLOR[0], SECONDARY_COLOR[1], SECONDARY_COLOR[2]);
+  doc.rect(pageWidth - 42, 0, 42, 38, 'F');
+
+  doc.setTextColor(255, 255, 255);
+  doc.setFont('Helvetica', 'bold');
+  doc.setFontSize(20);
+  doc.text('IKONEX ACADEMY', 14, 14);
+  doc.setFontSize(10);
+  doc.setFont('Helvetica', 'normal');
+  doc.text(`SUBJECT PERFORMANCE REPORT`, 14, 21);
+  doc.text(`Subject: ${subject.name} (${subject.code})  |  Term: ${term}`, 14, 27);
+
+  // Stats row
+  doc.setFillColor(248, 250, 252);
+  doc.rect(14, 44, pageWidth - 28, 18, 'F');
+  doc.setTextColor(TEXT_DARK[0], TEXT_DARK[1], TEXT_DARK[2]);
+  doc.setFont('Helvetica', 'bold');
+  doc.setFontSize(8);
+  doc.text('TOTAL STUDENTS', 20, 51);
+  doc.text('SUBJECT MEAN', pageWidth / 4 + 10, 51);
+  doc.text('PASS RATE', pageWidth / 2 + 5, 51);
+  doc.text('TOP SCORE', (pageWidth / 4) * 3 + 2, 51);
+
+  doc.setFontSize(13);
+  doc.setTextColor(PRIMARY_COLOR[0], PRIMARY_COLOR[1], PRIMARY_COLOR[2]);
+  doc.text(`${rows.length}`, 20, 59);
+  doc.text(`${Math.round(totalMean * 10) / 10}%`, pageWidth / 4 + 10, 59);
+  doc.setTextColor(SECONDARY_COLOR[0], SECONDARY_COLOR[1], SECONDARY_COLOR[2]);
+  doc.text(`${Math.round((passed / rows.length) * 1000) / 10}%`, pageWidth / 2 + 5, 59);
+  doc.setTextColor(TEXT_DARK[0], TEXT_DARK[1], TEXT_DARK[2]);
+  doc.text(`${rows[0]?.total ?? 0}`, (pageWidth / 4) * 3 + 2, 59);
+
+  const headers = [['Rank', 'Adm No', 'Student Name', 'Class Stream', 'CA (40)', 'Exam (60)', 'Total (100)', 'Grade', 'Remark']];
+  const data = rows.map((r, i) => [
+    (i + 1).toString(), r.admNo, r.name, r.stream,
+    r.ca.toString(), r.exam.toString(), r.total.toString(), r.grade, r.remark
+  ]);
+
+  autoTable(doc, {
+    startY: 68,
+    head: headers,
+    body: data,
+    theme: 'striped',
+    headStyles: { textColor: [255, 255, 255], fontSize: 8, fontStyle: 'bold', halign: 'center' },
+    bodyStyles: { fontSize: 8 },
+    columnStyles: {
+      0: { halign: 'center', cellWidth: 12 },
+      1: { halign: 'center', cellWidth: 24 },
+      3: { cellWidth: 28 },
+      4: { halign: 'center' },
+      5: { halign: 'center' },
+      6: { halign: 'center', fontStyle: 'bold' },
+      7: { halign: 'center', fontStyle: 'bold' },
+    },
+    margin: { left: 14, right: 14 },
+  });
+
+  doc.save(`Subject_Mean_${subject.code}_${term.replace(/\s+/g, '_')}.pdf`);
+};
+
+// ─── Bulk: All students individual report cards (one PDF per student, zip-like multi-save) ──
+export const generateAllStudentReportsPDF = (streamId: string, term = 'Term 1 2026'): void => {
+  const stream = db.getStream(streamId);
+  if (!stream) { alert('Stream not found.'); return; }
+  const students = db.getStudentsByStream(streamId);
+  if (students.length === 0) { alert('No students in this stream.'); return; }
+
+  students.forEach(st => generateReportCardPDF(st.id, term));
+};
+
+// ─── All streams class performance in one bundled PDF ─────────────────────────
+export const generateAllStreamsReportPDF = (term = 'Term 1 2026'): void => {
+  const streams = db.getStreams();
+  if (streams.length === 0) { alert('No class streams found.'); return; }
+
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+  const pageWidth = doc.internal.pageSize.getWidth();
+  let isFirstPage = true;
+
+  streams.forEach(stream => {
+    const rankings = getStreamRankings(stream.id, term);
+    if (rankings.length === 0) return;
+
+    if (!isFirstPage) doc.addPage();
+    isFirstPage = false;
+
+    const totalAvg = rankings.reduce((s: number, r: any) => s + r.averageScore, 0) / rankings.length;
+
+    doc.setFillColor(PRIMARY_COLOR[0], PRIMARY_COLOR[1], PRIMARY_COLOR[2]);
+    doc.rect(0, 0, pageWidth, 35, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('Helvetica', 'bold');
+    doc.setFontSize(16);
+    doc.text('IKONEX ACADEMY', 14, 12);
+    doc.setFontSize(10);
+    doc.setFont('Helvetica', 'normal');
+    doc.text(`CLASS PERFORMANCE — ${stream.name}`, 14, 19);
+    doc.text(`Term: ${term}  |  Students: ${rankings.length}  |  Class Average: ${Math.round(totalAvg * 100) / 100}%`, 14, 25);
+
+    const headers = [['Rank', 'Adm No', 'Student Name', 'Total Marks', 'Average', 'Grade', 'Remarks']];
+    const data = rankings.map((r: any) => [
+      r.rank.toString(), r.admissionNumber,
+      `${r.firstName} ${r.lastName}`,
+      r.totalMarks.toString(),
+      `${Math.round(r.averageScore * 100) / 100}%`,
+      r.grade, r.remark
+    ]);
+
+    autoTable(doc, {
+      startY: 40,
+      head: headers,
+      body: data,
+      theme: 'striped',
+      headStyles: { textColor: [255, 255, 255], fontSize: 8.5, fontStyle: 'bold', halign: 'center' },
+      bodyStyles: { fontSize: 8 },
+      columnStyles: {
+        0: { halign: 'center', cellWidth: 14, fontStyle: 'bold' },
+        1: { halign: 'center', cellWidth: 28 },
+        2: { cellWidth: 48 },
+        3: { halign: 'center' },
+        4: { halign: 'center', fontStyle: 'bold' },
+        5: { halign: 'center', fontStyle: 'bold' },
+        6: { cellWidth: 32 },
+      },
+      margin: { left: 14, right: 14 },
+    });
+  });
+
+  doc.save(`All_Classes_Performance_${term.replace(/\s+/g, '_')}.pdf`);
 };
