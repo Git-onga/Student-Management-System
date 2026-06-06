@@ -1,6 +1,6 @@
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { db } from '../services/db';
+import { api } from '../services/api';
 import { getStudentAcademicReport, getStreamRankings, getGradeForScore } from './academicEngine';
 
 // Colors for branding
@@ -10,8 +10,8 @@ const TEXT_DARK = [15, 23, 42] as const; // Slate 900
 const TEXT_LIGHT = [100, 116, 139] as const; // Slate 500
 const LINE_COLOR = [226, 232, 240] as const; // Slate 200
 
-export const generateReportCardPDF = (studentId: string, term = 'Term 1 2026'): void => {
-  const report = getStudentAcademicReport(studentId, term);
+export const generateReportCardPDF = async (studentId: string, term = 'Term 1 2026'): Promise<void> => {
+  const report = await getStudentAcademicReport(studentId, term);
   if (!report) {
     alert('Student report card data not found.');
     return;
@@ -147,7 +147,6 @@ export const generateReportCardPDF = (studentId: string, term = 'Term 1 2026'): 
     body: data,
     theme: 'grid',
     headStyles: {
-      // fillColor: PRIMARY_COLOR,
       textColor: [255, 255, 255],
       fontSize: 8,
       fontStyle: 'bold',
@@ -155,7 +154,6 @@ export const generateReportCardPDF = (studentId: string, term = 'Term 1 2026'): 
     },
     bodyStyles: {
       fontSize: 8,
-      // textColor: TEXT_DARK,
     },
     columnStyles: {
       0: { cellWidth: 16, halign: 'center' },
@@ -187,7 +185,8 @@ export const generateReportCardPDF = (studentId: string, term = 'Term 1 2026'): 
   doc.setTextColor(TEXT_DARK[0], TEXT_DARK[1], TEXT_DARK[2]);
   doc.text('Grading Scale Guide:', 14, finalY);
 
-  const scale = db.getGradingScale().sort((a, b) => b.minScore - a.minScore);
+  const rawScale = await api.getGradingScale();
+  const scale = rawScale.sort((a, b) => b.minScore - a.minScore);
   const scaleText = scale.map(s => `${s.grade}: ${s.minScore}-${Math.round(s.maxScore)}% (${s.remark})`).join('  |  ');
   
   doc.setFont('Helvetica', 'normal');
@@ -212,14 +211,14 @@ export const generateReportCardPDF = (studentId: string, term = 'Term 1 2026'): 
   doc.save(filename);
 };
 
-export const generateClassPerformancePDF = (streamId: string, term = 'Term 1 2026'): void => {
-  const stream = db.getStream(streamId);
+export const generateClassPerformancePDF = async (streamId: string, term = 'Term 1 2026'): Promise<void> => {
+  const stream = await api.getStream(streamId);
   if (!stream) {
     alert('Stream not found.');
     return;
   }
 
-  const rankings = getStreamRankings(streamId, term);
+  const rankings = await getStreamRankings(streamId, term);
   const doc = new jsPDF({
     orientation: 'portrait',
     unit: 'mm',
@@ -279,7 +278,6 @@ export const generateClassPerformancePDF = (streamId: string, term = 'Term 1 202
     body: data,
     theme: 'striped',
     headStyles: {
-      // fillColor: PRIMARY_COLOR,
       textColor: [255, 255, 255],
       fontSize: 9,
       fontStyle: 'bold',
@@ -287,7 +285,6 @@ export const generateClassPerformancePDF = (streamId: string, term = 'Term 1 202
     },
     bodyStyles: {
       fontSize: 8.5,
-      // textColor: TEXT_DARK,
     },
     columnStyles: {
       0: { halign: 'center', cellWidth: 15, fontStyle: 'bold' },
@@ -305,17 +302,17 @@ export const generateClassPerformancePDF = (streamId: string, term = 'Term 1 202
   doc.save(filename);
 };
 
-// ─── Subject Mean & Performance Report ────────────────────────────────────────
-export const generateSubjectMeanPDF = (subjectId: string, term = 'Term 1 2026'): void => {
-  const subject = db.getSubjects().find(s => s.id === subjectId);
+export const generateSubjectMeanPDF = async (subjectId: string, term = 'Term 1 2026'): Promise<void> => {
+  const subjects = await api.getSubjects();
+  const subject = subjects.find(s => s.id === subjectId);
   if (!subject) { alert('Subject not found.'); return; }
 
-  const allScores = db.getScoresRaw().filter(sc => sc.subjectId === subjectId && sc.term === term);
+  const allScores = await api.getScores({ subjectId, term });
   if (allScores.length === 0) { alert(`No scores recorded for ${subject.name} in ${term}.`); return; }
 
-  const allStudents = db.getStudents();
-  const allStreams = db.getStreams();
-  const scale = db.getGradingScale();
+  const allStudents = await api.getStudents();
+  const allStreams = await api.getStreams();
+  const scale = await api.getGradingScale();
 
   const rows = allScores.map(sc => {
     const student = allStudents.find(st => st.id === sc.studentId);
@@ -402,28 +399,28 @@ export const generateSubjectMeanPDF = (subjectId: string, term = 'Term 1 2026'):
   doc.save(`Subject_Mean_${subject.code}_${term.replace(/\s+/g, '_')}.pdf`);
 };
 
-// ─── Bulk: All students individual report cards (one PDF per student, zip-like multi-save) ──
-export const generateAllStudentReportsPDF = (streamId: string, term = 'Term 1 2026'): void => {
-  const stream = db.getStream(streamId);
-  if (!stream) { alert('Stream not found.'); return; }
-  const students = db.getStudentsByStream(streamId);
+export const generateAllStudentReportsPDF = async (streamId: string, term = 'Term 1 2026'): Promise<void> => {
+  const detail = await api.getStream(streamId);
+  if (!detail) { alert('Stream not found.'); return; }
+  const students = detail.students || [];
   if (students.length === 0) { alert('No students in this stream.'); return; }
 
-  students.forEach(st => generateReportCardPDF(st.id, term));
+  for (const st of students) {
+    await generateReportCardPDF(st.id, term);
+  }
 };
 
-// ─── All streams class performance in one bundled PDF ─────────────────────────
-export const generateAllStreamsReportPDF = (term = 'Term 1 2026'): void => {
-  const streams = db.getStreams();
+export const generateAllStreamsReportPDF = async (term = 'Term 1 2026'): Promise<void> => {
+  const streams = await api.getStreams();
   if (streams.length === 0) { alert('No class streams found.'); return; }
 
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   const pageWidth = doc.internal.pageSize.getWidth();
   let isFirstPage = true;
 
-  streams.forEach(stream => {
-    const rankings = getStreamRankings(stream.id, term);
-    if (rankings.length === 0) return;
+  for (const stream of streams) {
+    const rankings = await getStreamRankings(stream.id, term);
+    if (rankings.length === 0) continue;
 
     if (!isFirstPage) doc.addPage();
     isFirstPage = false;
@@ -468,7 +465,7 @@ export const generateAllStreamsReportPDF = (term = 'Term 1 2026'): void => {
       },
       margin: { left: 14, right: 14 },
     });
-  });
+  }
 
   doc.save(`All_Classes_Performance_${term.replace(/\s+/g, '_')}.pdf`);
 };

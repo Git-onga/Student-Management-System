@@ -1,79 +1,158 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { db, type Stream } from '../services/db';
-import { getStreamRankings } from '../utils/academicEngine';
+import { api } from '../services/api';
+import { type Stream, type Student, type Subject } from '../services/db';
+import { getStreamRankings, type StreamRankEntry } from '../utils/academicEngine';
 import { generateClassPerformancePDF } from '../utils/pdfGenerator';
-import { BookOpen, GraduationCap, Plus, Search, FileText, X, CheckSquare, Square, Trash2 } from 'lucide-react';
+import { Search, FileText, X, CheckSquare, Square, Trash2, Loader2 } from 'lucide-react';
 
 export const StreamDetailPage: React.FC = () => {
-  const { streamId } = useParams();
+  const { streamId } = useParams<{ streamId: string }>();
   const navigate = useNavigate();
-  const stream: Stream | undefined = streamId ? db.getStream(streamId) : undefined;
 
-  const [detailTab, setDetailTab] = React.useState<'students' | 'subjects' | 'rankings'>('students');
-  const [assignedSubjectIds, setAssignedSubjectIds] = React.useState<string[]>([]);
-  const [searchStudentQuery, setSearchStudentQuery] = React.useState('');
+  const [stream, setStream] = useState<Stream | null>(null);
+  const [activeStudents, setActiveStudents] = useState<Student[]>([]);
+  const [assignedSubjects, setAssignedSubjects] = useState<Subject[]>([]);
+  const [allSubjects, setAllSubjects] = useState<Subject[]>([]);
+  const [streamRankings, setStreamRankings] = useState<StreamRankEntry[]>([]);
 
-  React.useEffect(() => {
-    if (streamId) {
-      setAssignedSubjectIds(db.getSubjectsByStream(streamId).map(s => s.id));
+  const [loading, setLoading] = useState(true);
+  const [loadingRankings, setLoadingRankings] = useState(false);
+  const [error, setError] = useState('');
+
+  const [detailTab, setDetailTab] = useState<'students' | 'subjects' | 'rankings'>('students');
+  const [assignedSubjectIds, setAssignedSubjectIds] = useState<string[]>([]);
+  const [searchStudentQuery, setSearchStudentQuery] = useState('');
+
+  const fetchStreamData = async () => {
+    if (!streamId) return;
+    try {
+      setLoading(true);
+      setError('');
+      
+      // Fetch stream details (includes students & subjects assigned)
+      const detail = await api.getStream(streamId);
+      setStream(detail);
+      setActiveStudents(detail.students || []);
+      setAssignedSubjects(detail.subjects || []);
+      setAssignedSubjectIds((detail.subjects || []).map(s => s.id));
+
+      // Fetch all subjects in school for curriculum toggle
+      const subjectsList = await api.getSubjects();
+      setAllSubjects(subjectsList);
+    } catch (err: any) {
+      console.error(err);
+      setError(err.message || 'Failed to load stream details');
+    } finally {
+      setLoading(false);
     }
+  };
+
+  useEffect(() => {
+    fetchStreamData();
   }, [streamId]);
 
-  const handleOpenStreamDetails = (stream: Stream) => {
-    navigate(`/stream-detail/${stream.id}`);
-  };
+  // Load rankings when rankings tab is active
+  useEffect(() => {
+    if (detailTab === 'rankings' && streamId) {
+      const loadRankings = async () => {
+        try {
+          setLoadingRankings(true);
+          const ranks = await getStreamRankings(streamId, 'Term 1 2026');
+          setStreamRankings(ranks);
+        } catch (err) {
+          console.error(err);
+        } finally {
+          setLoadingRankings(false);
+        }
+      };
+      loadRankings();
+    }
+  }, [detailTab, streamId]);
 
-  const handleDeleteStream = (id: string) => {
+  const handleDeleteStream = async (id: string) => {
     if (confirm('Are you sure you want to delete this class stream? Students will be unassigned, but not deleted.')) {
-      db.deleteStream(id);
-      navigate('/');
+      try {
+        await api.deleteStream(id);
+        navigate('/streams');
+      } catch (err: any) {
+        alert(err.message || 'Failed to delete stream.');
+      }
     }
   };
 
-  const handleDownloadClassReport = () => {
-    if (stream) {
-      generateClassPerformancePDF(stream.id, 'Term 1 2026');
+  const handleDownloadClassReport = async () => {
+    if (streamId) {
+      await generateClassPerformancePDF(streamId, 'Term 1 2026');
     }
   };
 
-  const activeStudents = stream ? db.getStudentsByStream(stream.id) : [];
+  const handleToggleSubjectAssignment = (subjectId: string) => {
+    setAssignedSubjectIds(prev =>
+      prev.includes(subjectId) ? prev.filter(id => id !== subjectId) : [...prev, subjectId]
+    );
+  };
+
+  const handleSaveSubjectsAssignment = async () => {
+    if (!streamId || !stream) return;
+    try {
+      // Find what to add & what to remove
+      const originalIds = assignedSubjects.map(s => s.id);
+      const toAdd = assignedSubjectIds.filter(id => !originalIds.includes(id));
+      const toRemove = originalIds.filter(id => !assignedSubjectIds.includes(id));
+
+      // Execute assignments sequentially or in parallel
+      await Promise.all([
+        ...toAdd.map(id => api.assignSubjectToStream(streamId, id)),
+        ...toRemove.map(id => api.removeSubjectFromStream(streamId, id)),
+      ]);
+
+      alert('Subject assignments updated successfully.');
+      
+      // Reload stream info
+      const detail = await api.getStream(streamId);
+      setAssignedSubjects(detail.subjects || []);
+      setAssignedSubjectIds((detail.subjects || []).map(s => s.id));
+    } catch (err: any) {
+      alert(err.message || 'Failed to update subject assignments.');
+    }
+  };
+
   const filteredStudents = activeStudents.filter(s =>
     `${s.firstName} ${s.lastName}`.toLowerCase().includes(searchStudentQuery.toLowerCase()) ||
     s.admissionNumber.toLowerCase().includes(searchStudentQuery.toLowerCase())
   );
-  const subjects = db.getSubjects();
-  const streamRankings = stream ? getStreamRankings(stream.id, 'Term 1 2026') : [];
 
-  const handleToggleSubjectAssignment = (subjectId: string) => {
-    setAssignedSubjectIds(prev => prev.includes(subjectId) ? prev.filter(id => id !== subjectId) : [...prev, subjectId]);
-  };
+  if (loading) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', alignItems: 'center', justifyContent: 'center', minHeight: '300px', color: 'var(--text-muted)' }}>
+        <Loader2 className="animate-spin" size={36} />
+        <p>Loading stream information...</p>
+      </div>
+    );
+  }
 
-  const handleSaveSubjectsAssignment = () => {
-    if (stream) {
-      db.assignSubjectsToStream(stream.id, assignedSubjectIds);
-      alert('Subject assignments updated successfully.');
-    }
-  };
-
-  if (!stream) {
+  if (error || !stream) {
     return (
       <div className="panel">
         <h2>Stream not found</h2>
-        <p>No stream details available.</p>
-        <button className="btn btn-primary" onClick={() => navigate('/')}>Back</button>
+        <p>{error || 'No stream details available.'}</p>
+        <button className="btn btn-primary" onClick={() => navigate('/streams')}>Back to Streams</button>
       </div>
     );
   }
 
   return (
-    <><button className="btn btn-secondary" onClick={() => navigate(-1)}>
-      <X size={15} /> Back
-    </button>
-    <div className="panel" style={{ marginTop: '36px' }}>
-
+    <>
+      <button className="btn btn-secondary" onClick={() => navigate('/streams')}>
+        <X size={15} /> Back
+      </button>
+      
+      <div className="panel" style={{ marginTop: '36px' }}>
         <div style={{ marginBottom: '28px' }}>
-          <h2 style={{ fontSize: '26px', fontWeight: '800', letterSpacing: '0.5px', marginBottom: '16px', textTransform: 'uppercase' }}>{stream.name}</h2>
+          <h2 style={{ fontSize: '26px', fontWeight: '800', letterSpacing: '0.5px', marginBottom: '16px', textTransform: 'uppercase' }}>
+            {stream.name}
+          </h2>
           <div style={{ display: 'flex', alignItems: 'center', gap: '24px', padding: '20px', background: 'var(--bg-card, rgba(255,255,255,0.03))', border: '1px solid var(--border-color)', borderRadius: '12px' }}>
             {/* Avatar placeholder */}
             <div style={{ width: '90px', height: '90px', minWidth: '90px', borderRadius: '14px', background: 'var(--bg-hover, rgba(128,128,128,0.15))' }} />
@@ -81,32 +160,33 @@ export const StreamDetailPage: React.FC = () => {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 48px', flex: 1 }}>
               <div style={{ display: 'flex', gap: '8px' }}>
                 <span style={{ fontWeight: '600', color: 'var(--text-main)', fontSize: '13.5px', minWidth: '110px' }}>Class Teacher</span>
-                <span style={{ color: 'var(--text-muted)', fontSize: '13.5px' }}>{stream.classTeacher}</span>
+                <span style={{ color: 'var(--text-muted)', fontSize: '13.5px' }}>{stream.classTeacher || 'N/A'}</span>
               </div>
               <div style={{ display: 'flex', gap: '8px' }}>
                 <span style={{ fontWeight: '700', color: 'var(--text-main)', fontSize: '13.5px', minWidth: '110px' }}>Class Captain</span>
-                <span style={{ color: 'var(--text-muted)', fontSize: '13.5px' }}>{stream.classCaptain}</span>
+                <span style={{ color: 'var(--text-muted)', fontSize: '13.5px' }}>{stream.classCaptain || 'N/A'}</span>
               </div>
               <div style={{ display: 'flex', gap: '8px' }}>
                 <span style={{ fontWeight: '600', color: 'var(--text-main)', fontSize: '13.5px', minWidth: '110px' }}>Telephone</span>
-                <span style={{ color: 'var(--text-muted)', fontSize: '13.5px' }}>{stream.telephone}</span>
+                <span style={{ color: 'var(--text-muted)', fontSize: '13.5px' }}>{stream.telephone || 'N/A'}</span>
               </div>
               <div style={{ display: 'flex', gap: '8px' }}>
                 <span style={{ fontWeight: '700', color: 'var(--text-main)', fontSize: '13.5px', minWidth: '110px' }}>Reg No</span>
-                <span style={{ color: 'var(--text-muted)', fontSize: '13.5px' }}>{stream.admNo}</span>
+                <span style={{ color: 'var(--text-muted)', fontSize: '13.5px' }}>{stream.admNo || 'N/A'}</span>
               </div>
               <div style={{ display: 'flex', gap: '8px' }}>
                 <span style={{ fontWeight: '600', color: 'var(--text-main)', fontSize: '13.5px', minWidth: '110px' }}>Subjects</span>
-                <span style={{ color: 'var(--text-muted)', fontSize: '13.5px' }}>{stream.subject}</span>
+                <span style={{ color: 'var(--text-muted)', fontSize: '13.5px' }}>{stream.subject || 'N/A'}</span>
               </div>
               <div />
               <div style={{ display: 'flex', gap: '8px' }}>
                 <span style={{ fontWeight: '600', color: 'var(--text-main)', fontSize: '13.5px', minWidth: '110px' }}>Employee ID</span>
-                <span style={{ color: 'var(--text-muted)', fontSize: '13.5px' }}>{stream.empID}</span>
+                <span style={{ color: 'var(--text-muted)', fontSize: '13.5px' }}>{stream.empID || 'N/A'}</span>
               </div>
             </div>
           </div>
         </div>
+
         <div style={{ display: 'flex', justifySelf: 'stretch', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-color)', paddingBottom: '16px', marginBottom: '20px' }}>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -123,7 +203,6 @@ export const StreamDetailPage: React.FC = () => {
             <button className="btn btn-danger" onClick={() => handleDeleteStream(stream.id)}>
               <Trash2 size={15} /> Delete Stream
             </button>
-
           </div>
         </div>
 
@@ -149,7 +228,8 @@ export const StreamDetailPage: React.FC = () => {
                   placeholder="Search students in this stream by name or admission number..."
                   className="form-control search-control"
                   value={searchStudentQuery}
-                  onChange={e => setSearchStudentQuery(e.target.value)} />
+                  onChange={e => setSearchStudentQuery(e.target.value)}
+                />
               </div>
             </div>
             <div className="table-container">
@@ -170,7 +250,9 @@ export const StreamDetailPage: React.FC = () => {
                       <td>{student.firstName} {student.lastName}</td>
                       <td>{student.gender}</td>
                       <td>{student.dateOfBirth}</td>
-                      <td><span className={`badge badge-${student.status}`}>{student.status}</span></td>
+                      <td>
+                        <span className={`badge badge-${student.status}`}>{student.status}</span>
+                      </td>
                     </tr>
                   ))}
                   {filteredStudents.length === 0 && (
@@ -192,7 +274,7 @@ export const StreamDetailPage: React.FC = () => {
               Toggle which subjects are offered by <strong>{stream.name}</strong>. Score entries will only be allowed for assigned subjects.
             </p>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '16px', marginBottom: '24px' }}>
-              {subjects.map(subject => {
+              {allSubjects.map(subject => {
                 const isAssigned = assignedSubjectIds.includes(subject.id);
                 return (
                   <div
@@ -205,7 +287,7 @@ export const StreamDetailPage: React.FC = () => {
                       background: 'rgba(255,255,255,0.01)',
                       border: '1px solid var(--border-color)',
                       borderRadius: '8px',
-                      cursor: 'pointer'
+                      cursor: 'pointer',
                     }}
                     onClick={() => handleToggleSubjectAssignment(subject.id)}
                   >
@@ -236,45 +318,58 @@ export const StreamDetailPage: React.FC = () => {
                 <FileText size={15} /> Export Class Rankings PDF
               </button>
             </div>
+            
             <div className="table-container">
-              <table className="custom-table">
-                <thead>
-                  <tr>
-                    <th style={{ width: '80px', textAlign: 'center' }}>Rank</th>
-                    <th>Admission No</th>
-                    <th>Student Name</th>
-                    <th style={{ textAlign: 'center' }}>Subjects</th>
-                    <th style={{ textAlign: 'center' }}>Total Marks</th>
-                    <th style={{ textAlign: 'center' }}>Average Score</th>
-                    <th style={{ textAlign: 'center' }}>Overall Grade</th>
-                    <th>Remark</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {streamRankings.map(entry => (
-                    <tr key={entry.studentId}>
-                      <td style={{ textAlign: 'center', fontWeight: 'bold', color: entry.rank === 1 ? 'var(--color-secondary)' : 'var(--text-main)' }}>{entry.rank}</td>
-                      <td>{entry.admissionNumber}</td>
-                      <td style={{ fontWeight: '500' }}>{entry.firstName} {entry.lastName}</td>
-                      <td style={{ textAlign: 'center' }}>{entry.subjectsCount}</td>
-                      <td style={{ textAlign: 'center' }}>{entry.totalMarks}</td>
-                      <td style={{ textAlign: 'center', fontWeight: 'bold' }}>{Math.round(entry.averageScore * 100) / 100}%</td>
-                      <td style={{ textAlign: 'center', fontWeight: 'bold', color: entry.grade === 'A' ? 'var(--color-success)' : entry.grade === 'F' ? 'var(--color-accent)' : 'var(--color-primary)' }}>{entry.grade}</td>
-                      <td>{entry.remark}</td>
-                    </tr>
-                  ))}
-                  {streamRankings.length === 0 && (
+              {loadingRankings ? (
+                <div style={{ display: 'flex', gap: '8px', padding: '40px', justifyContent: 'center', alignItems: 'center', color: 'var(--text-muted)' }}>
+                  <Loader2 className="animate-spin" size={20} />
+                  <span>Calculating class rankings...</span>
+                </div>
+              ) : (
+                <table className="custom-table">
+                  <thead>
                     <tr>
-                      <td colSpan={8} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '24px' }}>
-                        No assessment data available to compile rankings for this class stream.
-                      </td>
+                      <th style={{ width: '80px', textAlign: 'center' }}>Rank</th>
+                      <th>Admission No</th>
+                      <th>Student Name</th>
+                      <th style={{ textAlign: 'center' }}>Subjects</th>
+                      <th style={{ textAlign: 'center' }}>Total Marks</th>
+                      <th style={{ textAlign: 'center' }}>Average Score</th>
+                      <th style={{ textAlign: 'center' }}>Overall Grade</th>
+                      <th>Remark</th>
                     </tr>
-                  )}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {streamRankings.map(entry => (
+                      <tr key={entry.studentId}>
+                        <td style={{ textAlign: 'center', fontWeight: 'bold', color: entry.rank === 1 ? 'var(--color-secondary)' : 'var(--text-main)' }}>
+                          {entry.rank}
+                        </td>
+                        <td>{entry.admissionNumber}</td>
+                        <td style={{ fontWeight: '500' }}>{entry.firstName} {entry.lastName}</td>
+                        <td style={{ textAlign: 'center' }}>{entry.subjectsCount}</td>
+                        <td style={{ textAlign: 'center' }}>{entry.totalMarks}</td>
+                        <td style={{ textAlign: 'center', fontWeight: 'bold' }}>{Math.round(entry.averageScore * 100) / 100}%</td>
+                        <td style={{ textAlign: 'center', fontWeight: 'bold', color: entry.grade === 'A' ? 'var(--color-success)' : entry.grade === 'F' ? 'var(--color-accent)' : 'var(--color-primary)' }}>
+                          {entry.grade}
+                        </td>
+                        <td>{entry.remark}</td>
+                      </tr>
+                    ))}
+                    {streamRankings.length === 0 && (
+                      <tr>
+                        <td colSpan={8} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '24px' }}>
+                          No assessment data available to compile rankings for this class stream.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              )}
             </div>
           </div>
         )}
-      </div></>
-);
+      </div>
+    </>
+  );
 };

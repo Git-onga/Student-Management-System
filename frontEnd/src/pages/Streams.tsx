@@ -1,17 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { db, type Stream, type Subject, type Student } from '../services/db';
-import { getStreamRankings } from '../utils/academicEngine';
-import { generateClassPerformancePDF } from '../utils/pdfGenerator';
-import { BookOpen, GraduationCap, Plus, Search, FileText, X, CheckSquare, Square, Trash2 } from 'lucide-react';
+import { api } from '../services/api';
+import { type Stream } from '../services/db';
+import { Plus, X, Loader2 } from 'lucide-react';
 
 export const Streams: React.FC = () => {
-  const [streams, setStreams] = useState<Stream[]>(db.getStreams());
-  const [subjects] = useState<Subject[]>(db.getSubjects());
-  const [selectedStream, setSelectedStream] = useState<Stream | null>(null);
-
-  // Tab control inside stream detail
-  const [detailTab, setDetailTab] = useState<'students' | 'subjects' | 'rankings'>('students');
+  const [streams, setStreams] = useState<Stream[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   // Form states for creating a stream
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -22,17 +18,33 @@ export const Streams: React.FC = () => {
   const [newStreamEmpID, setNewStreamEmpID] = useState('');
   const [newStreamClassCaptain, setNewStreamClassCaptain] = useState('');
   const [newStreamAdmNo, setNewStreamAdmNo] = useState('');
-  const [searchStudentQuery, setSearchStudentQuery] = useState('');
-  // Subject management state for the selected stream
-  const [assignedSubjectIds, setAssignedSubjectIds] = useState<string[]>([]);
+  const [formError, setFormError] = useState('');
+
   const navigate = useNavigate();
 
+  const fetchStreams = async () => {
+    try {
+      setLoading(true);
+      setError('');
+      const data = await api.getStreams();
+      setStreams(data);
+    } catch (err: any) {
+      console.error(err);
+      setError(err.message || 'Failed to fetch streams');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchStreams();
+  }, []);
 
   const handleOpenStreamDetails = (stream: Stream) => {
     navigate(`/stream-detail/${stream.id}`);
   };
 
-  const handleCreateStream = (e: React.FormEvent) => {
+  const handleCreateStream = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError('');
     if (!newStreamName.trim()) {
@@ -41,16 +53,16 @@ export const Streams: React.FC = () => {
     }
 
     try {
-      const created = db.createStream({
+      const created = await api.createStream({
         name: newStreamName,
-        classTeacher: newStreamClassTeacher,
-        telephone: newStreamTelephone,
-        subject: newStreamSubject,
-        empID: newStreamEmpID,
-        classCaptain: newStreamClassCaptain,
-        admNo: newStreamAdmNo,
+        classTeacher: newStreamClassTeacher || '',
+        telephone: newStreamTelephone || '',
+        subject: newStreamSubject || '',
+        empID: newStreamEmpID || '',
+        classCaptain: newStreamClassCaptain || '',
+        admNo: newStreamAdmNo || '',
       });
-      setStreams(db.getStreams());
+      
       setShowCreateModal(false);
       // Reset form
       setNewStreamName('');
@@ -60,51 +72,33 @@ export const Streams: React.FC = () => {
       setNewStreamEmpID('');
       setNewStreamClassCaptain('');
       setNewStreamAdmNo('');
+      
       handleOpenStreamDetails(created);
     } catch (err: any) {
       setFormError(err.message || 'Error creating stream.');
     }
   };
 
-  const [formError, setFormError] = useState('');
+  if (loading) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', alignItems: 'center', justifyContent: 'center', minHeight: '300px', color: 'var(--text-muted)' }}>
+        <Loader2 className="animate-spin" size={36} />
+        <p>Loading school streams...</p>
+      </div>
+    );
+  }
 
-  const handleDeleteStream = (streamId: string) => {
-    if (confirm('Are you sure you want to delete this class stream? Students will be unassigned, but not deleted.')) {
-      db.deleteStream(streamId);
-      setStreams(db.getStreams());
-      setSelectedStream(null);
-    }
-  };
-
-  const handleToggleSubjectAssignment = (subjectId: string) => {
-    if (assignedSubjectIds.includes(subjectId)) {
-      setAssignedSubjectIds(prev => prev.filter(id => id !== subjectId));
-    } else {
-      setAssignedSubjectIds(prev => [...prev, subjectId]);
-    }
-  };
-
-  const handleSaveSubjectsAssignment = () => {
-    if (selectedStream) {
-      db.assignSubjectsToStream(selectedStream.id, assignedSubjectIds);
-      alert('Subject assignments updated successfully.');
-    }
-  };
-
-  const handleDownloadClassReport = () => {
-    if (selectedStream) {
-      generateClassPerformancePDF(selectedStream.id, 'Term 1 2026');
-    }
-  };
-
-  // Get data for selected stream details
-  const activeStudents = selectedStream ? db.getStudentsByStream(selectedStream.id) : [];
-  const filteredStudents = activeStudents.filter(s =>
-    `${s.firstName} ${s.lastName}`.toLowerCase().includes(searchStudentQuery.toLowerCase()) ||
-    s.admissionNumber.toLowerCase().includes(searchStudentQuery.toLowerCase())
-  );
-
-  const streamRankings = selectedStream ? getStreamRankings(selectedStream.id, 'Term 1 2026') : [];
+  if (error) {
+    return (
+      <div className="custom-alert alert-error" style={{ margin: '24px 0' }}>
+        <h4>Error loading class streams</h4>
+        <p>{error}</p>
+        <button className="btn btn-primary" style={{ marginTop: '12px' }} onClick={fetchStreams}>
+          Try Again
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -149,7 +143,6 @@ export const Streams: React.FC = () => {
           ))}
       </div>
 
-
       {/* CREATE STREAM MODAL */}
       {showCreateModal && (
         <div className="modal-overlay">
@@ -162,7 +155,7 @@ export const Streams: React.FC = () => {
             </div>
 
             {formError && (
-              <div className="custom-alert custom-alert-error">
+              <div className="custom-alert custom-alert-error" style={{ marginBottom: '16px' }}>
                 {formError}
               </div>
             )}

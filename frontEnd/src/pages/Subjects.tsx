@@ -1,12 +1,15 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { db, type Subject, type Stream } from '../services/db';
-import { BookOpen, Plus, Edit, Trash2, X, GraduationCap } from 'lucide-react';
+import { api } from '../services/api';
+import { type Subject } from '../services/db';
+import { Plus, Edit, Trash2, X, GraduationCap, Loader2 } from 'lucide-react';
 
 export const Subjects: React.FC = () => {
   const navigate = useNavigate();
-  const [subjects, setSubjects] = useState<Subject[]>(db.getSubjects());
-  const [streams] = useState<Stream[]>(db.getStreams());
+  const [subjects, setSubjects] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
   const [showFormModal, setShowFormModal] = useState(false);
   const [editingSubject, setEditingSubject] = useState<Subject | null>(null);
 
@@ -15,6 +18,24 @@ export const Subjects: React.FC = () => {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [formError, setFormError] = useState('');
+
+  const fetchSubjects = async () => {
+    try {
+      setLoading(true);
+      setError('');
+      const data = await api.getSubjects();
+      setSubjects(data);
+    } catch (err: any) {
+      console.error(err);
+      setError(err.message || 'Failed to fetch subjects');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchSubjects();
+  }, []);
 
   const handleOpenAdd = () => {
     setEditingSubject(null);
@@ -34,7 +55,7 @@ export const Subjects: React.FC = () => {
     setShowFormModal(true);
   };
 
-  const handleSaveSubject = (e: React.FormEvent) => {
+  const handleSaveSubject = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError('');
 
@@ -49,44 +70,57 @@ export const Subjects: React.FC = () => {
 
     try {
       if (editingSubject) {
-        db.updateSubject(editingSubject.id, {
+        await api.updateSubject(editingSubject.id, {
           code: code.toUpperCase(),
           name,
           description,
         });
       } else {
-        db.createSubject({
+        await api.createSubject({
           code: code.toUpperCase(),
           name,
           description,
-          teachers: []
         });
       }
-      setSubjects(db.getSubjects());
+      
+      await fetchSubjects();
       setShowFormModal(false);
     } catch (err: any) {
       setFormError(err.message || 'An error occurred while saving.');
     }
   };
 
-  const handleDeleteSubject = (id: string) => {
+  const handleDeleteSubject = async (id: string) => {
     if (confirm('Are you sure you want to permanently delete this subject? It will be removed from all assigned class streams and all related exam/CA scores will be deleted.')) {
-      db.deleteSubject(id);
-      setSubjects(db.getSubjects());
+      try {
+        await api.deleteSubject(id);
+        await fetchSubjects();
+      } catch (err: any) {
+        alert(err.message || 'Failed to delete subject.');
+      }
     }
   };
 
-  // Helper to find streams assigned to a subject
-  const getAssignedStreamsForSubject = (subjectId: string): string[] => {
-    const rawLinks = db.getStreamSubjectsRaw();
-    const assignedStreamIds = rawLinks
-      .filter(link => link.subjectId === subjectId)
-      .map(link => link.streamId);
-    
-    return streams
-      .filter(s => assignedStreamIds.includes(s.id))
-      .map(s => s.name);
-  };
+  if (loading) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', alignItems: 'center', justifyContent: 'center', minHeight: '300px', color: 'var(--text-muted)' }}>
+        <Loader2 className="animate-spin" size={36} />
+        <p>Loading school subjects...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="custom-alert alert-error" style={{ margin: '24px 0' }}>
+        <h4>Error loading subjects</h4>
+        <p>{error}</p>
+        <button className="btn btn-primary" style={{ marginTop: '12px' }} onClick={fetchSubjects}>
+          Try Again
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -104,7 +138,7 @@ export const Subjects: React.FC = () => {
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '24px' }}>
         {subjects.map(sub => {
-          const assignedClassNames = getAssignedStreamsForSubject(sub.id);
+          const assignedClassNames = (sub.streamSubjects || []).map((ss: any) => ss.stream?.name).filter(Boolean);
 
           return (
             <div 
@@ -157,7 +191,7 @@ export const Subjects: React.FC = () => {
                 </div>
                 
                 <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                  {assignedClassNames.map((name, idx) => (
+                  {assignedClassNames.map((name: string, idx: number) => (
                     <span key={idx} style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '4px', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border-color)', fontWeight: '500' }}>
                       {name}
                     </span>
@@ -188,7 +222,7 @@ export const Subjects: React.FC = () => {
             </div>
 
             {formError && (
-              <div className="custom-alert custom-alert-error">
+              <div className="custom-alert custom-alert-error" style={{ marginBottom: '16px' }}>
                 {formError}
               </div>
             )}

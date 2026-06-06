@@ -1,34 +1,106 @@
-import React from 'react';
-import { db } from '../services/db';
-import { getStreamRankings } from '../utils/academicEngine';
-import { Users, BookOpen, GraduationCap, Award, Calendar } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { api } from '../services/api';
+import { type Student, type Stream, type Subject } from '../services/db';
+import { Users, BookOpen, GraduationCap, Award, Calendar, Loader2 } from 'lucide-react';
 
 interface DashboardProps {
   onNavigate: (page: string) => void;
 }
 
 export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
-  const students = db.getStudents();
-  const streams = db.getStreams();
-  const subjects = db.getSubjects();
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  
+  const [students, setStudents] = useState<Student[]>([]);
+  const [streams, setStreams] = useState<Stream[]>([]);
+  const [subjects, setSubjects] = useState<Subject[]>([]);
+  
+  const [streamAverages, setStreamAverages] = useState<{ name: string; avg: number }[]>([]);
+  const [overallSchoolAverage, setOverallSchoolAverage] = useState(0);
 
-  // Calculate academic average of the school
-  let schoolTotalAvg = 0;
-  let streamsWithData = 0;
-
-  const streamAverages = streams.map(stream => {
-    const ranks = getStreamRankings(stream.id, 'Term 1 2026');
-    if (ranks.length === 0) return { name: stream.name, avg: 0 };
-    const avg = ranks.reduce((sum, r) => sum + r.averageScore, 0) / ranks.length;
-    schoolTotalAvg += avg;
-    streamsWithData++;
-    return {
-      name: stream.name,
-      avg: Math.round(avg * 10) / 10
+  useEffect(() => {
+    let active = true;
+    const loadData = async () => {
+      try {
+        setLoading(true);
+        setError('');
+        
+        const [fetchedStreams, fetchedStudents, fetchedSubjects] = await Promise.all([
+          api.getStreams(),
+          api.getStudents(),
+          api.getSubjects(),
+        ]);
+        
+        if (!active) return;
+        
+        setStreams(fetchedStreams);
+        setStudents(fetchedStudents);
+        setSubjects(fetchedSubjects);
+        
+        // Fetch rankings/averages for each stream
+        let schoolTotalAvg = 0;
+        let streamsWithData = 0;
+        
+        const averages = await Promise.all(
+          fetchedStreams.map(async (stream) => {
+            try {
+              const result = await api.getStreamRankings(stream.id, 'Term 1 2026');
+              const ranks = result.rankings || [];
+              if (ranks.length === 0) return { name: stream.name, avg: 0 };
+              
+              const avg = ranks.reduce((sum, r) => sum + r.averageScore, 0) / ranks.length;
+              schoolTotalAvg += avg;
+              streamsWithData++;
+              
+              return {
+                name: stream.name,
+                avg: Math.round(avg * 10) / 10,
+              };
+            } catch {
+              return { name: stream.name, avg: 0 };
+            }
+          })
+        );
+        
+        if (!active) return;
+        
+        setStreamAverages(averages);
+        setOverallSchoolAverage(streamsWithData > 0 ? Math.round(schoolTotalAvg / streamsWithData) : 0);
+      } catch (err: any) {
+        console.error(err);
+        if (active) setError(err.message || 'Failed to load dashboard metrics');
+      } finally {
+        if (active) setLoading(false);
+      }
     };
-  });
+    
+    loadData();
+    return () => {
+      active = false;
+    };
+  }, []);
 
-  const overallSchoolAverage = streamsWithData > 0 ? Math.round(schoolTotalAvg / streamsWithData) : 0;
+  if (loading) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', alignItems: 'center', justifyContent: 'center', minHeight: '300px', color: 'var(--text-muted)' }}>
+        <Loader2 className="animate-spin" size={36} />
+        <p>Loading school metrics and performance stats...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="custom-alert alert-error" style={{ margin: '24px 0' }}>
+        <h4>Error loading dashboard</h4>
+        <p>{error}</p>
+        <button className="btn btn-primary" style={{ marginTop: '12px' }} onClick={() => window.location.reload()}>
+          Retry Connection
+        </button>
+      </div>
+    );
+  }
+
   const recentStudents = [...students]
     .sort((a, b) => b.id.localeCompare(a.id))
     .slice(0, 5);

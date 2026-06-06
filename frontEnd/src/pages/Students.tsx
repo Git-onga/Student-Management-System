@@ -1,12 +1,15 @@
-import React, { useState } from 'react';
-import { db, type Student, type Stream } from '../services/db';
-import { getStudentAcademicReport } from '../utils/academicEngine';
+import React, { useState, useEffect } from 'react';
+import { api } from '../services/api';
+import { type Student, type Stream } from '../services/db';
+import { getStudentAcademicReport, type StudentAcademicReport } from '../utils/academicEngine';
 import { generateReportCardPDF } from '../utils/pdfGenerator';
-import { Search, UserPlus, Eye, Edit, Trash2, X, FileText } from 'lucide-react';
+import { Search, UserPlus, Eye, Edit, Trash2, X, FileText, Loader2 } from 'lucide-react';
 
 export const Students: React.FC = () => {
-  const [students, setStudents] = useState<Student[]>(db.getStudents());
-  const [streams] = useState<Stream[]>(db.getStreams());
+  const [students, setStudents] = useState<Student[]>([]);
+  const [streams, setStreams] = useState<Stream[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   // Search and Filter states
   const [searchQuery, setSearchQuery] = useState('');
@@ -15,6 +18,9 @@ export const Students: React.FC = () => {
 
   // Modals state
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
+  const [reportData, setReportData] = useState<StudentAcademicReport | null>(null);
+  const [loadingReport, setLoadingReport] = useState(false);
+  
   const [showFormModal, setShowFormModal] = useState(false);
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
 
@@ -26,6 +32,58 @@ export const Students: React.FC = () => {
   const [streamId, setStreamId] = useState('');
   const [status, setStatus] = useState<'active' | 'suspended' | 'graduated'>('active');
   const [formError, setFormError] = useState('');
+
+  const fetchInitialData = async () => {
+    try {
+      setLoading(true);
+      setError('');
+      const [fetchedStudents, fetchedStreams] = await Promise.all([
+        api.getStudents(),
+        api.getStreams(),
+      ]);
+      setStudents(fetchedStudents);
+      setStreams(fetchedStreams);
+    } catch (err: any) {
+      console.error(err);
+      setError(err.message || 'Failed to load directory data');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchInitialData();
+  }, []);
+
+  // Fetch report card preview when selectedStudent changes
+  useEffect(() => {
+    if (!selectedStudent) {
+      setReportData(null);
+      return;
+    }
+    
+    let active = true;
+    const fetchReport = async () => {
+      try {
+        setLoadingReport(true);
+        const data = await getStudentAcademicReport(selectedStudent.id, 'Term 1 2026');
+        if (active) {
+          setReportData(data);
+        }
+      } catch (err) {
+        console.error(err);
+      } finally {
+        if (active) {
+          setLoadingReport(false);
+        }
+      }
+    };
+    
+    fetchReport();
+    return () => {
+      active = false;
+    };
+  }, [selectedStudent]);
 
   const handleOpenRegister = () => {
     setEditingStudent(null);
@@ -46,13 +104,21 @@ export const Students: React.FC = () => {
     setLastName(student.lastName);
     setDateOfBirth(student.dateOfBirth);
     setGender(student.gender);
-    setStreamId(student.streamId);
+    setStreamId(student.streamId || '');
     setStatus(student.status);
     setFormError('');
     setShowFormModal(true);
   };
 
-  const handleSaveStudent = (e: React.FormEvent) => {
+  const generateUniqueAdmNum = () => {
+    let adm = '';
+    do {
+      adm = `IKX-2026-${Math.floor(1000 + Math.random() * 9000)}`;
+    } while (students.some(s => s.admissionNumber === adm));
+    return adm;
+  };
+
+  const handleSaveStudent = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError('');
 
@@ -64,10 +130,15 @@ export const Students: React.FC = () => {
       setFormError('Date of birth is required.');
       return;
     }
+    if (!streamId) {
+      setFormError('Stream assignment is required.');
+      return;
+    }
 
     try {
       if (editingStudent) {
-        db.updateStudent(editingStudent.id, {
+        await api.updateStudent(editingStudent.id, {
+          admissionNumber: editingStudent.admissionNumber,
           firstName,
           lastName,
           dateOfBirth,
@@ -76,7 +147,9 @@ export const Students: React.FC = () => {
           status,
         });
       } else {
-        db.createStudent({
+        const admissionNumber = generateUniqueAdmNum();
+        await api.createStudent({
+          admissionNumber,
           firstName,
           lastName,
           dateOfBirth,
@@ -85,29 +158,37 @@ export const Students: React.FC = () => {
           status,
         });
       }
-      setStudents(db.getStudents());
+      
+      // Refresh list
+      const updated = await api.getStudents();
+      setStudents(updated);
       setShowFormModal(false);
     } catch (err: any) {
       setFormError(err.message || 'An error occurred while saving.');
     }
   };
 
-  const handleDeleteStudent = (id: string, e: React.MouseEvent) => {
+  const handleDeleteStudent = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     if (confirm('Are you sure you want to permanently delete this student record? All scores associated with them will also be removed.')) {
-      db.deleteStudent(id);
-      setStudents(db.getStudents());
-      if (selectedStudent && selectedStudent.id === id) {
-        setSelectedStudent(null);
+      try {
+        await api.deleteStudent(id);
+        const updated = await api.getStudents();
+        setStudents(updated);
+        if (selectedStudent && selectedStudent.id === id) {
+          setSelectedStudent(null);
+        }
+      } catch (err: any) {
+        alert(err.message || 'Failed to delete student.');
       }
     }
   };
 
-  const handleDownloadReportCard = (id: string) => {
-    generateReportCardPDF(id, 'Term 1 2026');
+  const handleDownloadReportCard = async (id: string) => {
+    await generateReportCardPDF(id, 'Term 1 2026');
   };
 
-  // Filter students based on queries
+  // Filter students based on queries (API supports server-side filtering, but local client-side filter is extra responsive)
   const filteredStudents = students.filter(st => {
     const nameMatch = `${st.firstName} ${st.lastName}`.toLowerCase().includes(searchQuery.toLowerCase()) ||
                       st.admissionNumber.toLowerCase().includes(searchQuery.toLowerCase());
@@ -116,8 +197,26 @@ export const Students: React.FC = () => {
     return nameMatch && streamMatch && statusMatch;
   });
 
-  // Load selected student report card preview data
-  const reportData = selectedStudent ? getStudentAcademicReport(selectedStudent.id, 'Term 1 2026') : null;
+  if (loading) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', alignItems: 'center', justifyContent: 'center', minHeight: '300px', color: 'var(--text-muted)' }}>
+        <Loader2 className="animate-spin" size={36} />
+        <p>Loading student directory...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="custom-alert alert-error" style={{ margin: '24px 0' }}>
+        <h4>Error loading Students page</h4>
+        <p>{error}</p>
+        <button className="btn btn-primary" style={{ marginTop: '12px' }} onClick={fetchInitialData}>
+          Try Again
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -296,42 +395,49 @@ export const Students: React.FC = () => {
                 </div>
 
                 <div className="table-container" style={{ maxHeight: '280px', overflowY: 'auto' }}>
-                  <table className="custom-table" style={{ fontSize: '12px' }}>
-                    <thead>
-                      <tr>
-                        <th>Subject</th>
-                        <th style={{ textAlign: 'center' }}>CA (40)</th>
-                        <th style={{ textAlign: 'center' }}>Exam (60)</th>
-                        <th style={{ textAlign: 'center' }}>Total</th>
-                        <th style={{ textAlign: 'center' }}>Grade</th>
-                        <th>Pos</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {reportData && reportData.subjectResults.map(res => (
-                        <tr key={res.subjectId}>
-                          <td>
-                            <div style={{ fontWeight: 'bold' }}>{res.subjectName}</div>
-                            <div style={{ fontSize: '10px', color: 'var(--text-dim)' }}>{res.subjectCode}</div>
-                          </td>
-                          <td style={{ textAlign: 'center' }}>{res.caScore}</td>
-                          <td style={{ textAlign: 'center' }}>{res.examScore}</td>
-                          <td style={{ textAlign: 'center', fontWeight: 'bold' }}>{res.totalScore}</td>
-                          <td style={{ textAlign: 'center', fontWeight: 'bold', color: res.grade === 'A' ? 'var(--color-success)' : res.grade === 'F' ? 'var(--color-accent)' : 'var(--color-primary)' }}>
-                            {res.grade}
-                          </td>
-                          <td style={{ textAlign: 'center' }}>{res.subjectPosition}</td>
-                        </tr>
-                      ))}
-                      {(!reportData || reportData.subjectResults.length === 0) && (
+                  {loadingReport ? (
+                    <div style={{ display: 'flex', gap: '8px', padding: '40px', justifyContent: 'center', alignItems: 'center', color: 'var(--text-muted)' }}>
+                      <Loader2 className="animate-spin" size={20} />
+                      <span>Loading report card statistics...</span>
+                    </div>
+                  ) : (
+                    <table className="custom-table" style={{ fontSize: '12px' }}>
+                      <thead>
                         <tr>
-                          <td colSpan={6} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '20px' }}>
-                            No assessment scores registered for this student.
-                          </td>
+                          <th>Subject</th>
+                          <th style={{ textAlign: 'center' }}>CA (40)</th>
+                          <th style={{ textAlign: 'center' }}>Exam (60)</th>
+                          <th style={{ textAlign: 'center' }}>Total</th>
+                          <th style={{ textAlign: 'center' }}>Grade</th>
+                          <th>Pos</th>
                         </tr>
-                      )}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody>
+                        {reportData && reportData.subjectResults.map(res => (
+                          <tr key={res.subjectId}>
+                            <td>
+                              <div style={{ fontWeight: 'bold' }}>{res.subjectName}</div>
+                              <div style={{ fontSize: '10px', color: 'var(--text-dim)' }}>{res.subjectCode}</div>
+                            </td>
+                            <td style={{ textAlign: 'center' }}>{res.caScore}</td>
+                            <td style={{ textAlign: 'center' }}>{res.examScore}</td>
+                            <td style={{ textAlign: 'center', fontWeight: 'bold' }}>{res.totalScore}</td>
+                            <td style={{ textAlign: 'center', fontWeight: 'bold', color: res.grade === 'A' ? 'var(--color-success)' : res.grade === 'F' ? 'var(--color-accent)' : 'var(--color-primary)' }}>
+                              {res.grade}
+                            </td>
+                            <td style={{ textAlign: 'center' }}>{res.subjectPosition}</td>
+                          </tr>
+                        ))}
+                        {(!reportData || reportData.subjectResults.length === 0) && (
+                          <tr>
+                            <td colSpan={6} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '20px' }}>
+                              No assessment scores registered for this student.
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  )}
                 </div>
               </div>
             </div>
@@ -353,7 +459,7 @@ export const Students: React.FC = () => {
             </div>
 
             {formError && (
-              <div className="custom-alert custom-alert-error">
+              <div className="custom-alert custom-alert-error" style={{ marginBottom: '16px' }}>
                 {formError}
               </div>
             )}
@@ -414,7 +520,7 @@ export const Students: React.FC = () => {
                     value={streamId}
                     onChange={(e) => setStreamId(e.target.value)}
                   >
-                    <option value="">Unassigned</option>
+                    <option value="">Select a Stream</option>
                     {streams.map(s => (
                       <option key={s.id} value={s.id}>{s.name}</option>
                     ))}

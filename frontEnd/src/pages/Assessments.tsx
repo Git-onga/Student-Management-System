@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { db, type Stream, type Subject, type Score, type GradingScale } from '../services/db';
+import { api } from '../services/api';
+import { type Stream, type Subject, type Score, type GradingScale } from '../services/db';
 import { getGradeForScore } from '../utils/academicEngine';
 import {
   generateReportCardPDF,
@@ -10,16 +11,19 @@ import {
 } from '../utils/pdfGenerator';
 import {
   AlertCircle, CheckCircle, Save, Info,
-  Download, FileText, Users, BookOpen, Layers, ChevronRight,
+  Download, FileText, Users, BookOpen, Layers, ChevronRight, Loader2,
 } from 'lucide-react';
 
 type PageTab = 'entry' | 'reports';
 
 export const Assessments: React.FC = () => {
   const [activeTab, setActiveTab] = useState<PageTab>('entry');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   // ── Score Entry State ───────────────────────────────────────────────────────
-  const [streams] = useState<Stream[]>(db.getStreams());
+  const [streams, setStreams] = useState<Stream[]>([]);
+  const [allSubjects, setAllSubjects] = useState<Subject[]>([]);
   const [selectedStreamId, setSelectedStreamId] = useState('');
   const [selectedSubjectId, setSelectedSubjectId] = useState('');
   const [selectedTerm, setSelectedTerm] = useState('Term 1 2026');
@@ -36,28 +40,63 @@ export const Assessments: React.FC = () => {
   }
 
   const [gridRows, setGridRows] = useState<EditableScoreRow[]>([]);
-  const [gradingScale] = useState<GradingScale[]>(db.getGradingScale());
+  const [loadingGrid, setLoadingGrid] = useState(false);
+  const [gradingScale, setGradingScale] = useState<GradingScale[]>([]);
   const [successMessage, setSuccessMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [saveTrigger, setSaveTrigger] = useState(0);
 
   // ── Reports State ───────────────────────────────────────────────────────────
   const [reportTerm, setReportTerm] = useState('Term 1 2026');
-  // Singular: single student report card
   const [reportStreamId, setReportStreamId] = useState('');
   const [reportStudentId, setReportStudentId] = useState('');
   const [reportStudentList, setReportStudentList] = useState<{ id: string; name: string; admNo: string }[]>([]);
-  // Singular: single subject mean
   const [reportSubjectId, setReportSubjectId] = useState('');
-  // Singular: single class stream
   const [reportClassStreamId, setReportClassStreamId] = useState('');
 
-  // ── Effects ─────────────────────────────────────────────────────────────────
+  const [downloading, setDownloading] = useState(false);
+
+  // Fetch initial lookups: streams, all subjects, grading scale
+  const fetchInitialLookups = async () => {
+    try {
+      setLoading(true);
+      setError('');
+      const [fetchedStreams, fetchedSubjects, scale] = await Promise.all([
+        api.getStreams(),
+        api.getSubjects(),
+        api.getGradingScale(),
+      ]);
+      setStreams(fetchedStreams);
+      setAllSubjects(fetchedSubjects);
+      setGradingScale(scale);
+    } catch (err: any) {
+      console.error(err);
+      setError(err.message || 'Failed to fetch lookups');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchInitialLookups();
+  }, []);
+
+  // Update available subjects when selectedStreamId changes
   useEffect(() => {
     if (selectedStreamId) {
-      const subs = db.getSubjectsByStream(selectedStreamId);
-      setAvailableSubjects(subs);
-      setSelectedSubjectId(subs.length > 0 ? subs[0].id : '');
+      const loadStreamSubjects = async () => {
+        try {
+          const detail = await api.getStream(selectedStreamId);
+          const subs = detail.subjects || [];
+          setAvailableSubjects(subs);
+          setSelectedSubjectId(subs.length > 0 ? subs[0].id : '');
+        } catch (err) {
+          console.error(err);
+          setAvailableSubjects([]);
+          setSelectedSubjectId('');
+        }
+      };
+      loadStreamSubjects();
     } else {
       setAvailableSubjects([]);
       setSelectedSubjectId('');
@@ -66,30 +105,67 @@ export const Assessments: React.FC = () => {
     setErrorMessage('');
   }, [selectedStreamId]);
 
+  // Load grading grid rows
   useEffect(() => {
-    if (!selectedStreamId || !selectedSubjectId) { setGridRows([]); return; }
-    const students = db.getStudentsByStream(selectedStreamId);
-    const existingScores = db.getScoresByStreamAndSubject(selectedStreamId, selectedSubjectId, selectedTerm);
-    setGridRows(students.map(student => {
-      const scoreObj = existingScores.find(s => s.studentId === student.id);
-      return {
-        studentId: student.id,
-        studentName: `${student.firstName} ${student.lastName}`,
-        admissionNumber: student.admissionNumber,
-        caScoreRaw: scoreObj ? scoreObj.caScore.toString() : '',
-        examScoreRaw: scoreObj ? scoreObj.examScore.toString() : '',
-        caError: '', examError: '',
-      };
-    }));
+    if (!selectedStreamId || !selectedSubjectId) {
+      setGridRows([]);
+      return;
+    }
+    
+    let active = true;
+    const loadGrid = async () => {
+      try {
+        setLoadingGrid(true);
+        const [students, existingScores] = await Promise.all([
+          api.getStudents({ streamId: selectedStreamId, status: 'active' }),
+          api.getScores({ streamId: selectedStreamId, subjectId: selectedSubjectId, term: selectedTerm }),
+        ]);
+        
+        if (!active) return;
+        
+        setGridRows(students.map(student => {
+          const scoreObj = existingScores.find(s => s.studentId === student.id);
+          return {
+            studentId: student.id,
+            studentName: `${student.firstName} ${student.lastName}`,
+            admissionNumber: student.admissionNumber,
+            caScoreRaw: scoreObj ? scoreObj.caScore.toString() : '',
+            examScoreRaw: scoreObj ? scoreObj.examScore.toString() : '',
+            caError: '',
+            examError: '',
+          };
+        }));
+      } catch (err: any) {
+        console.error(err);
+        if (active) setErrorMessage('Failed to load students/scores grid');
+      } finally {
+        if (active) setLoadingGrid(false);
+      }
+    };
+
+    loadGrid();
     setSuccessMessage('');
     setErrorMessage('');
+    return () => {
+      active = false;
+    };
   }, [selectedStreamId, selectedSubjectId, selectedTerm, saveTrigger]);
 
+  // Report student list filter trigger
   useEffect(() => {
     if (reportStreamId) {
-      const students = db.getStudentsByStream(reportStreamId);
-      setReportStudentList(students.map(s => ({ id: s.id, name: `${s.firstName} ${s.lastName}`, admNo: s.admissionNumber })));
-      setReportStudentId(students.length > 0 ? students[0].id : '');
+      const loadReportStudents = async () => {
+        try {
+          const students = await api.getStudents({ streamId: reportStreamId });
+          setReportStudentList(students.map(s => ({ id: s.id, name: `${s.firstName} ${s.lastName}`, admNo: s.admissionNumber })));
+          setReportStudentId(students.length > 0 ? students[0].id : '');
+        } catch (err) {
+          console.error(err);
+          setReportStudentList([]);
+          setReportStudentId('');
+        }
+      };
+      loadReportStudents();
     } else {
       setReportStudentList([]);
       setReportStudentId('');
@@ -114,7 +190,7 @@ export const Assessments: React.FC = () => {
     }));
   };
 
-  const handleSaveGrid = () => {
+  const handleSaveGrid = async () => {
     setSuccessMessage('');
     setErrorMessage('');
     if (gridRows.some(r => r.caError || r.examError)) {
@@ -130,16 +206,28 @@ export const Assessments: React.FC = () => {
         return;
       }
       if (caVal && examVal) {
-        scoresToSave.push({ studentId: row.studentId, subjectId: selectedSubjectId, caScore: parseFloat(caVal), examScore: parseFloat(examVal), term: selectedTerm });
+        scoresToSave.push({
+          studentId: row.studentId,
+          subjectId: selectedSubjectId,
+          caScore: parseFloat(caVal),
+          examScore: parseFloat(examVal),
+          term: selectedTerm,
+        });
       }
     }
-    if (scoresToSave.length === 0) { setErrorMessage('No scores entered to save.'); return; }
+    if (scoresToSave.length === 0) {
+      setErrorMessage('No scores entered to save.');
+      return;
+    }
     try {
-      db.saveScoresBatch(scoresToSave);
-      setSuccessMessage(`Scores saved for ${scoresToSave.length} students.`);
+      setLoadingGrid(true);
+      await api.batchUpsertScores(scoresToSave);
+      setSuccessMessage(`Scores saved successfully for ${scoresToSave.length} students.`);
       setSaveTrigger(p => p + 1);
     } catch (err: any) {
       setErrorMessage(err.message || 'Failed to save scores.');
+    } finally {
+      setLoadingGrid(false);
     }
   };
 
@@ -153,18 +241,26 @@ export const Assessments: React.FC = () => {
   };
 
   const errorCount = gridRows.filter(r => r.caError || r.examError).length;
-  const allSubjects = db.getSubjects();
 
   const TERMS = ['Term 1 2026', 'Term 2 2026', 'Term 3 2026'];
 
-  // ── Term selector shared component ──────────────────────────────────────────
   const TermSelect = ({ value, onChange }: { value: string; onChange: (v: string) => void }) => (
     <select className="form-control" value={value} onChange={e => onChange(e.target.value)} style={{ height: '40px', padding: '0 12px', minWidth: '160px' }}>
       {TERMS.map(t => <option key={t} value={t}>{t}</option>)}
     </select>
   );
 
-  // ── Report card section ──────────────────────────────────────────────────────
+  const wrapDownload = (fn: () => Promise<void>) => async () => {
+    try {
+      setDownloading(true);
+      await fn();
+    } catch (err: any) {
+      alert(err.message || 'Error generating report.');
+    } finally {
+      setDownloading(false);
+    }
+  };
+
   const ReportSection = ({
     icon, title, description, children, actions,
   }: {
@@ -203,6 +299,27 @@ export const Assessments: React.FC = () => {
     </div>
   );
 
+  if (loading) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', alignItems: 'center', justifyContent: 'center', minHeight: '300px', color: 'var(--text-muted)' }}>
+        <Loader2 className="animate-spin" size={36} />
+        <p>Loading assessment Portal lookups...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="custom-alert alert-error" style={{ margin: '24px 0' }}>
+        <h4>Error loading Portal</h4>
+        <p>{error}</p>
+        <button className="btn btn-primary" style={{ marginTop: '12px' }} onClick={fetchInitialLookups}>
+          Try Again
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div>
       <div className="content-header">
@@ -212,8 +329,8 @@ export const Assessments: React.FC = () => {
         </div>
         <div className="header-actions">
           {activeTab === 'entry' && gridRows.length > 0 && (
-            <button className="btn btn-primary" onClick={handleSaveGrid} disabled={errorCount > 0}>
-              <Save size={16} /> Save Changes
+            <button className="btn btn-primary" onClick={handleSaveGrid} disabled={errorCount > 0 || loadingGrid}>
+              {loadingGrid ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />} Save Changes
             </button>
           )}
         </div>
@@ -287,6 +404,7 @@ export const Assessments: React.FC = () => {
                   </span>
                 )}
               </div>
+              
               <div className="score-grid-container">
                 <div className="score-grid-header">
                   <div>Student Full Name</div>
@@ -296,33 +414,41 @@ export const Assessments: React.FC = () => {
                   <div style={{ textAlign: 'center' }}>Total Score</div>
                   <div style={{ textAlign: 'center' }}>Grade</div>
                 </div>
-                {gridRows.map(row => {
-                  const { total, grade } = getRowStats(row);
-                  return (
-                    <div key={row.studentId} className="score-grid-row">
-                      <div style={{ fontWeight: '500' }}>{row.studentName}</div>
-                      <div style={{ textAlign: 'center', fontSize: '12px', color: 'var(--text-muted)' }}>{row.admissionNumber}</div>
-                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                        <input type="text" className={`score-input ${row.caError ? 'invalid' : ''}`} placeholder="-" value={row.caScoreRaw} onChange={e => handleScoreChange(row.studentId, 'ca', e.target.value)} />
-                        {row.caError && <span style={{ fontSize: '9px', color: 'var(--color-accent)', marginTop: '4px' }}>{row.caError}</span>}
+                {loadingGrid ? (
+                  <div style={{ gridColumn: '1 / span 6', display: 'flex', gap: '8px', padding: '60px 0', justifyContent: 'center', alignItems: 'center', color: 'var(--text-muted)' }}>
+                    <Loader2 className="animate-spin" size={24} />
+                    <span>Loading student list and score entries...</span>
+                  </div>
+                ) : (
+                  gridRows.map(row => {
+                    const { total, grade } = getRowStats(row);
+                    return (
+                      <div key={row.studentId} className="score-grid-row">
+                        <div style={{ fontWeight: '500' }}>{row.studentName}</div>
+                        <div style={{ textAlign: 'center', fontSize: '12px', color: 'var(--text-muted)' }}>{row.admissionNumber}</div>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                          <input type="text" className={`score-input ${row.caError ? 'invalid' : ''}`} placeholder="-" value={row.caScoreRaw} onChange={e => handleScoreChange(row.studentId, 'ca', e.target.value)} />
+                          {row.caError && <span style={{ fontSize: '9px', color: 'var(--color-accent)', marginTop: '4px' }}>{row.caError}</span>}
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                          <input type="text" className={`score-input ${row.examError ? 'invalid' : ''}`} placeholder="-" value={row.examScoreRaw} onChange={e => handleScoreChange(row.studentId, 'exam', e.target.value)} />
+                          {row.examError && <span style={{ fontSize: '9px', color: 'var(--color-accent)', marginTop: '4px' }}>{row.examError}</span>}
+                        </div>
+                        <div style={{ textAlign: 'center' }}>{total}</div>
+                        <div style={{ textAlign: 'center', color: grade === 'A' ? 'var(--color-success)' : grade === 'F' ? 'var(--color-accent)' : 'var(--color-secondary)' }}>{grade}</div>
                       </div>
-                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                        <input type="text" className={`score-input ${row.examError ? 'invalid' : ''}`} placeholder="-" value={row.examScoreRaw} onChange={e => handleScoreChange(row.studentId, 'exam', e.target.value)} />
-                        {row.examError && <span style={{ fontSize: '9px', color: 'var(--color-accent)', marginTop: '4px' }}>{row.examError}</span>}
-                      </div>
-                      <div style={{ textAlign: 'center' }}>{total}</div>
-                      <div style={{ textAlign: 'center', color: grade === 'A' ? 'var(--color-success)' : grade === 'F' ? 'var(--color-accent)' : 'var(--color-secondary)' }}>{grade}</div>
-                    </div>
-                  );
-                })}
-                {gridRows.length === 0 && (
-                  <div style={{ padding: '40px', textAlign: 'center', color: 'var(--text-muted)' }}>No active students enrolled in this stream.</div>
+                    );
+                  })
+                )}
+                {!loadingGrid && gridRows.length === 0 && (
+                  <div style={{ gridColumn: '1 / span 6', padding: '40px', textAlign: 'center', color: 'var(--text-muted)' }}>No active students enrolled in this stream.</div>
                 )}
               </div>
-              {gridRows.length > 0 && (
+              
+              {!loadingGrid && gridRows.length > 0 && (
                 <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '20px' }}>
-                  <button className="btn btn-primary" onClick={handleSaveGrid} disabled={errorCount > 0}>
-                    <Save size={16} /> Save Score Submissions
+                  <button className="btn btn-primary" onClick={handleSaveGrid} disabled={errorCount > 0 || loadingGrid}>
+                    {loadingGrid ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />} Save Score Submissions
                   </button>
                 </div>
               )}
@@ -344,7 +470,15 @@ export const Assessments: React.FC = () => {
             <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
               <span style={{ fontSize: '13px', fontWeight: '600', color: 'var(--text-muted)' }}>Academic Term for All Reports:</span>
               <TermSelect value={reportTerm} onChange={setReportTerm} />
-              <span style={{ fontSize: '12px', color: 'var(--text-dim)', fontStyle: 'italic' }}>All report downloads below will use this term.</span>
+              <span style={{ fontSize: '12px', color: 'var(--text-dim)', fontStyle: 'italic' }}>
+                All report downloads below will use this term.
+              </span>
+              {downloading && (
+                <div style={{ display: 'flex', gap: '6px', alignItems: 'center', color: 'var(--color-secondary)', fontSize: '12px', fontWeight: 'bold', marginLeft: 'auto' }}>
+                  <Loader2 className="animate-spin" size={14} />
+                  <span>Generating and downloading PDF document...</span>
+                </div>
+              )}
             </div>
           </div>
 
@@ -358,8 +492,10 @@ export const Assessments: React.FC = () => {
               actions={
                 <button
                   className="btn btn-primary"
-                  disabled={!reportStudentId}
-                  onClick={() => reportStudentId && generateReportCardPDF(reportStudentId, reportTerm)}
+                  disabled={!reportStudentId || downloading}
+                  onClick={wrapDownload(async () => {
+                    await generateReportCardPDF(reportStudentId, reportTerm);
+                  })}
                 >
                   <Download size={14} /> Download Report Card
                 </button>
@@ -391,8 +527,10 @@ export const Assessments: React.FC = () => {
               actions={
                 <button
                   className="btn btn-success"
-                  disabled={!reportStreamId}
-                  onClick={() => reportStreamId && generateAllStudentReportsPDF(reportStreamId, reportTerm)}
+                  disabled={!reportStreamId || downloading}
+                  onClick={wrapDownload(async () => {
+                    await generateAllStudentReportsPDF(reportStreamId, reportTerm);
+                  })}
                 >
                   <Download size={14} /> Download All Report Cards
                 </button>
@@ -415,8 +553,10 @@ export const Assessments: React.FC = () => {
               actions={
                 <button
                   className="btn btn-primary"
-                  disabled={!reportSubjectId}
-                  onClick={() => reportSubjectId && generateSubjectMeanPDF(reportSubjectId, reportTerm)}
+                  disabled={!reportSubjectId || downloading}
+                  onClick={wrapDownload(async () => {
+                    await generateSubjectMeanPDF(reportSubjectId, reportTerm);
+                  })}
                 >
                   <Download size={14} /> Download Subject Report
                 </button>
@@ -439,8 +579,10 @@ export const Assessments: React.FC = () => {
               actions={
                 <button
                   className="btn btn-primary"
-                  disabled={!reportClassStreamId}
-                  onClick={() => reportClassStreamId && generateClassPerformancePDF(reportClassStreamId, reportTerm)}
+                  disabled={!reportClassStreamId || downloading}
+                  onClick={wrapDownload(async () => {
+                    await generateClassPerformancePDF(reportClassStreamId, reportTerm);
+                  })}
                 >
                   <Download size={14} /> Download Class Report
                 </button>
@@ -490,7 +632,10 @@ export const Assessments: React.FC = () => {
             <button
               className="btn btn-primary"
               style={{ padding: '12px 28px', fontSize: '14px', fontWeight: '700', whiteSpace: 'nowrap' }}
-              onClick={() => generateAllStreamsReportPDF(reportTerm)}
+              disabled={downloading}
+              onClick={wrapDownload(async () => {
+                await generateAllStreamsReportPDF(reportTerm);
+              })}
             >
               <Download size={16} /> Download All Classes Report
             </button>

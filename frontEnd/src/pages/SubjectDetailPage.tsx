@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { db, type Subject, type Teacher, type Stream } from '../services/db';
-import { getGradeForScore } from '../utils/academicEngine';
+import { api } from '../services/api';
+import { type Subject, type Teacher, type Stream } from '../services/db';
 import { 
   BookOpen, 
   Users, 
@@ -10,13 +10,10 @@ import {
   Percent, 
   ArrowLeft, 
   Search, 
-  User, 
   Phone, 
-  MapPin, 
-  Compass, 
-  Activity,
   Layers,
-  GraduationCap
+  GraduationCap,
+  Loader2
 } from 'lucide-react';
 
 interface StudentPerformance {
@@ -35,79 +32,64 @@ interface StudentPerformance {
 }
 
 export const SubjectDetailPage: React.FC = () => {
-  const { subjectId } = useParams();
+  const { subjectId } = useParams<{ subjectId: string }>();
   const navigate = useNavigate();
   
-  const subject = subjectId ? db.getSubjects().find(s => s.id === subjectId) : undefined;
-  
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedStream, setSelectedStream] = useState('all');
-  const [selectedGrade, setSelectedGrade] = useState('all');
+  const [subject, setSubject] = useState<Subject | null>(null);
   const [performanceData, setPerformanceData] = useState<StudentPerformance[]>([]);
   const [assignedStreams, setAssignedStreams] = useState<Stream[]>([]);
   const [assignedTeachers, setAssignedTeachers] = useState<Teacher[]>([]);
 
-  useEffect(() => {
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedStream, setSelectedStream] = useState('all');
+  const [selectedGrade, setSelectedGrade] = useState('all');
+
+  const fetchSubjectDetails = async () => {
     if (!subjectId) return;
-    const currentSubject = db.getSubjects().find(s => s.id === subjectId);
-    if (!currentSubject) return;
+    try {
+      setLoading(true);
+      setError('');
+      
+      // Fetch subject details (includes teachers & stream subjects relations)
+      const detail = await api.getSubject(subjectId);
+      setSubject(detail);
+      setAssignedTeachers(detail.teachers || []);
+      
+      const streamsList = (detail.streamSubjects || []).map((ss: any) => ss.stream).filter(Boolean);
+      setAssignedStreams(streamsList);
+      
+      // Fetch performance analytics for this subject
+      const perf = await api.getSubjectPerformance(subjectId, 'Term 1 2026');
+      setPerformanceData(perf);
+    } catch (err: any) {
+      console.error(err);
+      setError(err.message || 'Failed to load subject details');
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    // Load assigned streams
-    const rawLinks = db.getStreamSubjectsRaw();
-    const streamIds = rawLinks
-      .filter(link => link.subjectId === currentSubject.id)
-      .map(link => link.streamId);
-    const streamsList = db.getStreams().filter(s => streamIds.includes(s.id));
-    setAssignedStreams(streamsList);
-
-    // Load assigned teachers
-    const teachersList = db.getTeachers().filter(t => t.subjectId === currentSubject.id);
-    // Also include teachers specified by their empIDs in the subject array
-    const subjectTeacherEmpIds = currentSubject.teachers || [];
-    const extraTeachers = db.getTeachers().filter(t => subjectTeacherEmpIds.includes(t.empID));
-    
-    // Merge list uniquely by id
-    const uniqueTeachersMap = new Map<string, Teacher>();
-    teachersList.forEach(t => uniqueTeachersMap.set(t.id, t));
-    extraTeachers.forEach(t => uniqueTeachersMap.set(t.id, t));
-    setAssignedTeachers(Array.from(uniqueTeachersMap.values()));
-
-    // Load performance data from scores
-    const allScores = db.getScoresRaw().filter(sc => sc.subjectId === currentSubject.id);
-    const allStudents = db.getStudents();
-    const allStreams = db.getStreams();
-    const scale = db.getGradingScale();
-
-    const mappedData: StudentPerformance[] = allScores.map(score => {
-      const student = allStudents.find(st => st.id === score.studentId);
-      const stream = student ? allStreams.find(str => str.id === student.streamId) : null;
-      const totalScore = score.caScore + score.examScore;
-      const { grade, remark } = getGradeForScore(totalScore, scale);
-
-      return {
-        studentId: score.studentId,
-        admissionNumber: student?.admissionNumber || 'N/A',
-        name: student ? `${student.firstName} ${student.lastName}` : 'Unknown Student',
-        gender: student?.gender || 'N/A',
-        streamId: student?.streamId || '',
-        streamName: stream?.name || 'Unassigned',
-        caScore: score.caScore,
-        examScore: score.examScore,
-        totalScore,
-        grade,
-        remark,
-        term: score.term
-      };
-    });
-
-    setPerformanceData(mappedData);
+  useEffect(() => {
+    fetchSubjectDetails();
   }, [subjectId]);
 
-  if (!subject) {
+  if (loading) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', alignItems: 'center', justifyContent: 'center', minHeight: '300px', color: 'var(--text-muted)' }}>
+        <Loader2 className="animate-spin" size={36} />
+        <p>Loading subject details and coverage metrics...</p>
+      </div>
+    );
+  }
+
+  if (error || !subject) {
     return (
       <div className="panel">
         <h2>Subject Not Found</h2>
-        <p>The subject you are trying to view does not exist or has been deleted.</p>
+        <p>{error || 'The subject you are trying to view does not exist or has been deleted.'}</p>
         <button className="btn btn-primary" onClick={() => navigate('/subjects')}>
           <ArrowLeft size={16} /> Back to Subjects
         </button>
@@ -128,12 +110,10 @@ export const SubjectDetailPage: React.FC = () => {
 
   // Find highest & lowest performers
   let topPerformer: StudentPerformance | null = null;
-  let lowestPerformer: StudentPerformance | null = null;
 
   if (totalStudents > 0) {
     const sortedByScore = [...performanceData].sort((a, b) => b.totalScore - a.totalScore);
     topPerformer = sortedByScore[0];
-    lowestPerformer = sortedByScore[sortedByScore.length - 1];
   }
 
   // Grade count breakdown
@@ -277,7 +257,7 @@ export const SubjectDetailPage: React.FC = () => {
         
         {/* LEFT COLUMN: STUDENT LIST & FILTERS */}
         <div className="panel" style={{ marginBottom: 0 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
+          <div style={{ display: 'flex', justifySelf: 'stretch', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
             <h3 style={{ fontSize: '18px', fontWeight: 'bold' }}>Overall Student Performance Roster</h3>
             <span style={{ fontSize: '12.5px', color: 'var(--text-muted)' }}>Showing {filteredPerformance.length} students</span>
           </div>
@@ -461,8 +441,7 @@ export const SubjectDetailPage: React.FC = () => {
                     <div style={{ fontSize: '11px', color: 'var(--text-dim)', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px' }}>
                       <span>ID: {teacher.empID}</span>
                       <span>•</span>
-                      <Phone size={10} style={{ display: 'inline' }} />
-                      <span>{teacher.telephone}</span>
+                      <span>{teacher.telephone || 'No phone'}</span>
                     </div>
                   </div>
                 </div>

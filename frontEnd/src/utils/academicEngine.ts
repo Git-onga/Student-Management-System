@@ -1,4 +1,5 @@
-import { db, type Student, type Subject, type Score, type GradingScale } from '../services/db';
+import { api } from '../services/api';
+import { type Student, type Subject, type Score, type GradingScale } from '../services/db';
 
 export interface SubjectResult {
   subjectId: string;
@@ -49,7 +50,7 @@ export const getGradeForScore = (score: number, scale: GradingScale[]): { grade:
   if (matched) {
     return { grade: matched.grade, remark: matched.remark };
   }
-  // Fallbacks if not fully covered
+  // Fallbacks
   if (score >= 80) return { grade: 'A', remark: 'Excellent' };
   if (score >= 70) return { grade: 'B', remark: 'Very Good' };
   if (score >= 60) return { grade: 'C', remark: 'Good' };
@@ -59,7 +60,6 @@ export const getGradeForScore = (score: number, scale: GradingScale[]): { grade:
 };
 
 // 2. Helper to compute ranks with tie resolution
-// Takes an array of items, a key extractor, and returns a map of itemId -> rank
 export const computeRanks = <T>(
   items: T[],
   idExtractor: (item: T) => string,
@@ -68,7 +68,6 @@ export const computeRanks = <T>(
   const ranksMap = new Map<string, number>();
   if (items.length === 0) return ranksMap;
 
-  // Sort items descending by score
   const sorted = [...items].sort((a, b) => scoreExtractor(b) - scoreExtractor(a));
 
   let currentRank = 1;
@@ -83,10 +82,8 @@ export const computeRanks = <T>(
       const prevScore = scoreExtractor(prevItem);
 
       if (currentScore === prevScore) {
-        // Tie: maintains same rank as previous item
         skipped++;
       } else {
-        // No tie: advance rank by 1 + skipped ties
         currentRank += skipped + 1;
         skipped = 0;
       }
@@ -98,87 +95,68 @@ export const computeRanks = <T>(
   return ranksMap;
 };
 
-// 3. Compute rankings for all students in a stream
-export const getStreamRankings = (streamId: string, term = 'Term 1 2026'): StreamRankEntry[] => {
-  const students = db.getStudentsByStream(streamId);
-  const subjects = db.getSubjectsByStream(streamId);
-  const allScores = db.getScoresRaw().filter(sc => sc.term === term);
-  const scale = db.getGradingScale();
-
-  if (students.length === 0) return [];
-
-  // Calculate scores for each student
-  const studentAverages = students.map(student => {
-    const studentScores = allScores.filter(sc => sc.studentId === student.id);
-    
-    // Sum only for subjects actually assigned to this stream
-    let totalMarks = 0;
-    let subjectsScored = 0;
-
-    subjects.forEach(subject => {
-      const scoreEntry = studentScores.find(sc => sc.subjectId === subject.id);
-      if (scoreEntry) {
-        totalMarks += (scoreEntry.caScore + scoreEntry.examScore);
-        subjectsScored++;
-      }
-    });
-
-    const averageScore = subjects.length > 0 ? (totalMarks / subjects.length) : 0;
-    const { grade, remark } = getGradeForScore(averageScore, scale);
-
-    return {
-      studentId: student.id,
-      admissionNumber: student.admissionNumber,
-      firstName: student.firstName,
-      lastName: student.lastName,
-      totalMarks,
-      averageScore,
-      grade,
-      remark,
-      subjectsCount: subjects.length,
-    };
-  });
-
-  // Calculate ranks
-  const ranksMap = computeRanks(
-    studentAverages,
-    entry => entry.studentId,
-    entry => entry.averageScore
-  );
-
-  return studentAverages.map(entry => ({
-    ...entry,
-    rank: ranksMap.get(entry.studentId) || 1,
-  })).sort((a, b) => a.rank - b.rank);
+// 3. Compute rankings for all students in a stream using API
+export const getStreamRankings = async (streamId: string, term = 'Term 1 2026'): Promise<StreamRankEntry[]> => {
+  const rankingsResult = await api.getStreamRankings(streamId, term);
+  return (rankingsResult.rankings || []).map(r => ({
+    studentId: r.studentId,
+    admissionNumber: r.admissionNumber,
+    firstName: r.firstName,
+    lastName: r.lastName,
+    totalMarks: r.totalMarks,
+    averageScore: r.averageScore,
+    grade: r.grade,
+    remark: r.remark,
+    rank: r.rank,
+    subjectsCount: r.subjectsCount,
+  }));
 };
 
-// 4. Calculate detailed academic report for a single student
-export const getStudentAcademicReport = (studentId: string, term = 'Term 1 2026'): StudentAcademicReport | null => {
-  const student = db.getStudent(studentId);
+// 4. Calculate detailed academic report for a single student using API
+export const getStudentAcademicReport = async (studentId: string, term = 'Term 1 2026'): Promise<StudentAcademicReport | null> => {
+  const student = await api.getStudent(studentId);
   if (!student) return null;
 
-  const stream = db.getStream(student.streamId);
-  const streamName = stream ? stream.name : 'Unassigned';
-  const subjects = db.getSubjectsByStream(student.streamId);
-  const allStudentsInStream = db.getStudentsByStream(student.streamId);
-  const scale = db.getGradingScale();
+  const streamId = student.streamId;
+  const [streams, allStudentsInStream, streamScores, scale] = await Promise.all([
+    api.getStreams(),
+    api.getStudents({ streamId }),
+    api.getScores({ streamId, term }),
+    api.getGradingScale(),
+  ]);
 
-  // Find all scores of all students in this stream for reference positions
-  const streamScores = db.getScoresRaw().filter(sc => sc.term === term);
+  const stream = streams.find(s => s.id === streamId);
+  const streamName = stream ? stream.name : 'Unassigned';
+
+  // Get active subjects by checking which subjects have scores in this stream
+  const subjectIdsWithScores = Array.from(new Set(streamScores.map(sc => sc.subjectId)));
+  const allSubjects = await api.getSubjects();
+  const subjects = allSubjects.filter(sub => subjectIdsWithScores.includes(sub.id));
+
+  // If no scores exist yet, fall back to showing all subjects assigned to stream from stream detail
+  let activeSubjects = subjects;
+  if (streamId && activeSubjects.length === 0) {
+    try {
+      const detail = await api.getStream(streamId);
+      activeSubjects = detail.subjects || [];
+    } catch {
+      activeSubjects = [];
+    }
+  }
+
   const studentScores = streamScores.filter(sc => sc.studentId === studentId);
 
-  // Compute overall class rankings for the stream to find this student's rank
-  const rankings = getStreamRankings(student.streamId, term);
+  // Compute rankings
+  const rankings = await getStreamRankings(streamId, term);
   const rankingEntry = rankings.find(r => r.studentId === studentId);
   const classPosition = rankingEntry ? rankingEntry.rank : 1;
 
   // Calculate results per subject
-  const subjectResults: SubjectResult[] = subjects.map(subject => {
+  const subjectResults: SubjectResult[] = activeSubjects.map(subject => {
     const myScore = studentScores.find(sc => sc.subjectId === subject.id) || { caScore: 0, examScore: 0 };
     const myTotal = myScore.caScore + myScore.examScore;
     const { grade, remark } = getGradeForScore(myTotal, scale);
 
-    // Compute subject statistics for all students in the stream
     const subjectScoresInStream = allStudentsInStream.map(st => {
       const stScore = streamScores.find(sc => sc.studentId === st.id && sc.subjectId === subject.id);
       return {
@@ -192,7 +170,6 @@ export const getStudentAcademicReport = (studentId: string, term = 'Term 1 2026'
     const subjectMax = scoresList.length > 0 ? Math.max(...scoresList) : 0;
     const subjectMin = scoresList.length > 0 ? Math.min(...scoresList) : 0;
 
-    // Compute subject position
     const subjectRanksMap = computeRanks(
       subjectScoresInStream,
       entry => entry.studentId,
@@ -218,8 +195,8 @@ export const getStudentAcademicReport = (studentId: string, term = 'Term 1 2026'
   });
 
   const overallTotal = subjectResults.reduce((sum, r) => sum + r.totalScore, 0);
-  const overallMaxPossible = subjects.length * 100;
-  const overallAverage = subjects.length > 0 ? (overallTotal / subjects.length) : 0;
+  const overallMaxPossible = activeSubjects.length * 100;
+  const overallAverage = activeSubjects.length > 0 ? (overallTotal / activeSubjects.length) : 0;
   const { grade: overallGrade, remark: overallRemark } = getGradeForScore(overallAverage, scale);
 
   return {
