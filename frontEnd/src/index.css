@@ -401,6 +401,23 @@ body {
   letter-spacing: 0.2px;
 }
 
+/* Light theme overrides (applies when `data-theme="light"` is set on <html>) */
+[data-theme="light"] {
+  --bg-dark-base: #f8fafc;
+  --bg-dark-surface: #ffffff;
+  --bg-dark-glass: rgba(255, 255, 255, 0.8);
+  --border-color: rgba(15, 23, 42, 0.06);
+  --border-color-glow: rgba(99, 102, 241, 0.08);
+
+  --text-main: #0f172a;
+  --text-muted: #475569;
+  --text-dim: #64748b;
+
+  --shadow-glow: 0 0 20px rgba(99, 102, 241, 0.06);
+
+  background-color: var(--bg-dark-base);
+}
+
 .form-control {
   width: 100%;
   padding: 11px 16px;

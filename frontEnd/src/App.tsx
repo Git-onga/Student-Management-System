@@ -8,12 +8,14 @@ import { Streams } from './pages/Streams';
 import { Students } from './pages/Students';
 import { Subjects } from './pages/Subjects';
 import { Assessments } from './pages/Assessments';
-import { Book, Users, BookOpen, GraduationCap, Edit3 } from 'lucide-react';
+import { Book, Users, BookOpen, GraduationCap, Edit3, Sun, Moon } from 'lucide-react';
 
 const App: React.FC = () => {
   const [activePage, setActivePage] = useState('dashboard');
   const navigate = useNavigate();
   const location = useLocation();
+
+  const [theme, setTheme] = useState<'dark' | 'light'>('dark');
 
   useEffect(() => {
     const segment = location.pathname.split('/')[1]?.toLowerCase();
@@ -33,6 +35,26 @@ const App: React.FC = () => {
       }
     }
   }, [location]);
+
+  useEffect(() => {
+    const saved = localStorage.getItem('theme');
+    if (saved === 'light' || saved === 'dark') {
+      setTheme(saved);
+      document.documentElement.setAttribute('data-theme', saved);
+    } else {
+      const prefersLight = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches;
+      const initial = prefersLight ? 'light' : 'dark';
+      setTheme(initial);
+      document.documentElement.setAttribute('data-theme', initial);
+    }
+  }, []);
+
+  const toggleTheme = () => {
+    const next = theme === 'dark' ? 'light' : 'dark';
+    setTheme(next);
+    document.documentElement.setAttribute('data-theme', next);
+    localStorage.setItem('theme', next);
+  };
 
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: <Book size={18} /> },
@@ -89,7 +111,15 @@ const App: React.FC = () => {
               </li>
             ))}
           </ul>
-          <div className="sidebar-footer">© {new Date().getFullYear()} Ikonex Academy</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <div style={{ display: 'flex', justifyContent: 'center' }}>
+              <button className="btn btn-secondary" onClick={toggleTheme} aria-label="Toggle theme" style={{ padding: '8px 12px' }}>
+                {theme === 'dark' ? <Sun size={14} /> : <Moon size={14} />}
+                <span style={{ marginLeft: '8px', fontSize: '13px' }}>{theme === 'dark' ? 'Light Mode' : 'Dark Mode'}</span>
+              </button>
+            </div>
+            <div className="sidebar-footer">© {new Date().getFullYear()} Ikonex Academy</div>
+          </div>
         </aside>
 
         {/* Main Content */}
