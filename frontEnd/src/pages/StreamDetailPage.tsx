@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { api } from '../services/api';
-import { type Stream, type Student, type Subject } from '../services/db';
+import { type Stream, type Student, type Subject, type Teacher } from '../services/db';
 import { getStreamRankings, type StreamRankEntry } from '../utils/academicEngine';
 import { generateClassPerformancePDF } from '../utils/pdfGenerator';
 import { Search, FileText, X, CheckSquare, Square, Trash2, Loader2 } from 'lucide-react';
@@ -15,14 +15,35 @@ export const StreamDetailPage: React.FC = () => {
   const [assignedSubjects, setAssignedSubjects] = useState<Subject[]>([]);
   const [allSubjects, setAllSubjects] = useState<Subject[]>([]);
   const [streamRankings, setStreamRankings] = useState<StreamRankEntry[]>([]);
+  const [teachers, setTeachers] = useState<Teacher[]>([]);
+  const [allStreams, setAllStreams] = useState<Stream[]>([]);
 
   const [loading, setLoading] = useState(true);
   const [loadingRankings, setLoadingRankings] = useState(false);
   const [error, setError] = useState('');
+  const [isEditing, setIsEditing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
+
+  const [editName, setEditName] = useState('');
+  const [editClassTeacher, setEditClassTeacher] = useState('');
+  const [editTelephone, setEditTelephone] = useState('');
+  const [editSubject, setEditSubject] = useState('');
+  const [editEmpID, setEditEmpID] = useState('');
+  const [editClassCaptain, setEditClassCaptain] = useState('');
+  const [editAdmNo, setEditAdmNo] = useState('');
 
   const [detailTab, setDetailTab] = useState<'students' | 'subjects' | 'rankings'>('students');
   const [assignedSubjectIds, setAssignedSubjectIds] = useState<string[]>([]);
   const [searchStudentQuery, setSearchStudentQuery] = useState('');
+
+  const assignedClassTeacherEmpIDs = new Set(
+    allStreams.filter(s => s.id !== streamId).map(s => s.empID).filter(Boolean)
+  );
+  const eligibleClassTeachers = teachers.filter(t =>
+    !assignedClassTeacherEmpIDs.has(t.empID) || t.empID === stream?.empID
+  );
+  const classCaptainOptions = activeStudents.filter(student => student.status === 'active');
 
   const fetchStreamData = async () => {
     if (!streamId) return;
@@ -37,8 +58,14 @@ export const StreamDetailPage: React.FC = () => {
       setAssignedSubjects(detail.subjects || []);
       setAssignedSubjectIds((detail.subjects || []).map(s => s.id));
 
-      // Fetch all subjects in school for curriculum toggle
-      const subjectsList = await api.getSubjects();
+      // Fetch teachers and all streams for dropdown filtering
+      const [teachersList, streamsList, subjectsList] = await Promise.all([
+        api.getTeachers(),
+        api.getStreams(),
+        api.getSubjects(),
+      ]);
+      setTeachers(teachersList);
+      setAllStreams(streamsList);
       setAllSubjects(subjectsList);
     } catch (err: any) {
       console.error(err);
@@ -51,6 +78,65 @@ export const StreamDetailPage: React.FC = () => {
   useEffect(() => {
     fetchStreamData();
   }, [streamId]);
+
+  useEffect(() => {
+    if (!stream) return;
+    setEditName(stream.name || '');
+    setEditClassTeacher(stream.classTeacher || '');
+    setEditTelephone(stream.telephone || '');
+    setEditSubject(stream.subject || '');
+    setEditEmpID(stream.empID || '');
+    setEditClassCaptain(stream.classCaptain || '');
+    setEditAdmNo(stream.admNo || '');
+  }, [stream]);
+
+  const handleEditStream = () => {
+    setSaveError('');
+    setIsEditing(true);
+  };
+
+  const handleCancelEdit = () => {
+    if (stream) {
+      setEditName(stream.name || '');
+      setEditClassTeacher(stream.classTeacher || '');
+      setEditTelephone(stream.telephone || '');
+      setEditSubject(stream.subject || '');
+      setEditEmpID(stream.empID || '');
+      setEditClassCaptain(stream.classCaptain || '');
+      setEditAdmNo(stream.admNo || '');
+    }
+    setSaveError('');
+    setIsEditing(false);
+  };
+
+  const handleSaveStreamDetails = async () => {
+    if (!streamId || !stream) return;
+    if (!editName.trim()) {
+      setSaveError('Stream name is required.');
+      return;
+    }
+
+    try {
+      setIsSaving(true);
+      setSaveError('');
+      const updated = await api.updateStream(streamId, {
+        name: editName.trim(),
+        classTeacher: editClassTeacher.trim(),
+        telephone: editTelephone.trim(),
+        subject: editSubject.trim(),
+        empID: editEmpID.trim(),
+        classCaptain: editClassCaptain.trim(),
+        admNo: editAdmNo.trim(),
+      });
+      setStream(updated);
+      setIsEditing(false);
+      alert('Stream details updated successfully.');
+    } catch (err: any) {
+      setSaveError(err.message || 'Failed to update stream details.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   // Load rankings when rankings tab is active
   useEffect(() => {
@@ -156,33 +242,125 @@ export const StreamDetailPage: React.FC = () => {
           <div style={{ display: 'flex', alignItems: 'center', gap: '24px', padding: '20px', background: 'var(--bg-card, rgba(255,255,255,0.03))', border: '1px solid var(--border-color)', borderRadius: '12px' }}>
             {/* Avatar placeholder */}
             <div style={{ width: '90px', height: '90px', minWidth: '90px', borderRadius: '14px', background: 'var(--bg-hover, rgba(128,128,128,0.15))' }} />
-            {/* Details grid */}
+            {/* Details grid or edit form */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 48px', flex: 1 }}>
-              <div style={{ display: 'flex', gap: '8px' }}>
-                <span style={{ fontWeight: '600', color: 'var(--text-main)', fontSize: '13.5px', minWidth: '110px' }}>Class Teacher</span>
-                <span style={{ color: 'var(--text-muted)', fontSize: '13.5px' }}>{stream.classTeacher || 'N/A'}</span>
-              </div>
-              <div style={{ display: 'flex', gap: '8px' }}>
-                <span style={{ fontWeight: '700', color: 'var(--text-main)', fontSize: '13.5px', minWidth: '110px' }}>Class Captain</span>
-                <span style={{ color: 'var(--text-muted)', fontSize: '13.5px' }}>{stream.classCaptain || 'N/A'}</span>
-              </div>
-              <div style={{ display: 'flex', gap: '8px' }}>
-                <span style={{ fontWeight: '600', color: 'var(--text-main)', fontSize: '13.5px', minWidth: '110px' }}>Telephone</span>
-                <span style={{ color: 'var(--text-muted)', fontSize: '13.5px' }}>{stream.telephone || 'N/A'}</span>
-              </div>
-              <div style={{ display: 'flex', gap: '8px' }}>
-                <span style={{ fontWeight: '700', color: 'var(--text-main)', fontSize: '13.5px', minWidth: '110px' }}>Reg No</span>
-                <span style={{ color: 'var(--text-muted)', fontSize: '13.5px' }}>{stream.admNo || 'N/A'}</span>
-              </div>
-              <div style={{ display: 'flex', gap: '8px' }}>
-                <span style={{ fontWeight: '600', color: 'var(--text-main)', fontSize: '13.5px', minWidth: '110px' }}>Subjects</span>
-                <span style={{ color: 'var(--text-muted)', fontSize: '13.5px' }}>{stream.subject || 'N/A'}</span>
-              </div>
-              <div />
-              <div style={{ display: 'flex', gap: '8px' }}>
-                <span style={{ fontWeight: '600', color: 'var(--text-main)', fontSize: '13.5px', minWidth: '110px' }}>Employee ID</span>
-                <span style={{ color: 'var(--text-muted)', fontSize: '13.5px' }}>{stream.empID || 'N/A'}</span>
-              </div>
+              {isEditing ? (
+                <> 
+                  <div className="form-group">
+                    <label className="form-label">Stream Name</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Class Teacher</label>
+                    <select
+                      className="form-control"
+                      value={editEmpID}
+                      onChange={(e) => {
+                        const selected = teachers.find(t => t.empID === e.target.value);
+                        if (selected) {
+                          setEditClassTeacher(selected.name);
+                          setEditEmpID(selected.empID);
+                          setEditTelephone(selected.telephone)
+                        } else {
+                          setEditClassTeacher('');
+                          setEditEmpID('');
+                        }
+                      }}
+                    >
+                      <option value="">Select a teacher</option>
+                      {eligibleClassTeachers.map((teacher) => (
+                        <option key={teacher.id} value={teacher.empID}>
+                          {teacher.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Telephone</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      value={editTelephone}
+                      onChange={(e) => setEditTelephone(e.target.value)}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Reg No</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      value={editAdmNo}
+                      onChange={(e) => setEditAdmNo(e.target.value)}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Employee ID</label>
+                    <input
+                      type="text"
+                      className="form-control"
+                      value={editEmpID}
+                      onChange={(e) => setEditEmpID(e.target.value)}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Class Captain</label>
+                    <select
+                      className="form-control"
+                      value={editClassCaptain}
+                      onChange={(e) => {
+                        const selected = classCaptainOptions.find(student => student.id === e.target.value);
+                        if (selected) {
+                          setEditClassCaptain(`${selected.firstName} ${selected.lastName}`);
+                          setEditAdmNo(selected.admissionNumber);
+                        } else {
+                          setEditClassCaptain('');
+                          setEditAdmNo('');
+                        }
+                      }}
+                    >
+                      <option value="">Select a student</option>
+                      {classCaptainOptions.map((student) => (
+                        <option key={student.id} value={student.id}>
+                          {student.firstName} {student.lastName}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <span style={{ fontWeight: '600', color: 'var(--text-main)', fontSize: '13.5px', minWidth: '110px' }}>Class Teacher</span>
+                    <span style={{ color: 'var(--text-muted)', fontSize: '13.5px' }}>{stream.classTeacher || 'N/A'}</span>
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <span style={{ fontWeight: '700', color: 'var(--text-main)', fontSize: '13.5px', minWidth: '110px' }}>Class Captain</span>
+                    <span style={{ color: 'var(--text-muted)', fontSize: '13.5px' }}>{stream.classCaptain || 'N/A'}</span>
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <span style={{ fontWeight: '600', color: 'var(--text-main)', fontSize: '13.5px', minWidth: '110px' }}>Telephone</span>
+                    <span style={{ color: 'var(--text-muted)', fontSize: '13.5px' }}>{stream.telephone || 'N/A'}</span>
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <span style={{ fontWeight: '700', color: 'var(--text-main)', fontSize: '13.5px', minWidth: '110px' }}>Reg No</span>
+                    <span style={{ color: 'var(--text-muted)', fontSize: '13.5px' }}>{stream.admNo || 'N/A'}</span>
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <span style={{ fontWeight: '600', color: 'var(--text-main)', fontSize: '13.5px', minWidth: '110px' }}>Subjects</span>
+                    <span style={{ color: 'var(--text-muted)', fontSize: '13.5px' }}>{stream.subject || 'N/A'}</span>
+                  </div>
+                  <div />
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <span style={{ fontWeight: '600', color: 'var(--text-main)', fontSize: '13.5px', minWidth: '110px' }}>Employee ID</span>
+                    <span style={{ color: 'var(--text-muted)', fontSize: '13.5px' }}>{stream.empID || 'N/A'}</span>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -194,17 +372,36 @@ export const StreamDetailPage: React.FC = () => {
               <span className="badge badge-active">Active Stream</span>
             </div>
           </div>
-          <div style={{ display: 'flex', gap: '12px' }}>
+          <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
             {detailTab === 'rankings' && streamRankings.length > 0 && (
               <button className="btn btn-success" onClick={handleDownloadClassReport}>
                 <FileText size={15} /> Download PDF Report
               </button>
+            )}
+            {!isEditing ? (
+              <button className="btn btn-secondary" onClick={handleEditStream}>
+                <CheckSquare size={15} /> Edit Stream
+              </button>
+            ) : (
+              <>
+                <button className="btn btn-primary" onClick={handleSaveStreamDetails} disabled={isSaving}>
+                  {isSaving ? 'Saving...' : 'Save Changes'}
+                </button>
+                <button className="btn btn-secondary" onClick={handleCancelEdit} disabled={isSaving}>
+                  Cancel
+                </button>
+              </>
             )}
             <button className="btn btn-danger" onClick={() => handleDeleteStream(stream.id)}>
               <Trash2 size={15} /> Delete Stream
             </button>
           </div>
         </div>
+        {saveError && (
+          <div className="custom-alert alert-error" style={{ marginBottom: '16px' }}>
+            {saveError}
+          </div>
+        )}
 
         <div className="tabs-header">
           <button className={`tab-btn ${detailTab === 'students' ? 'active' : ''}`} onClick={() => setDetailTab('students')}>

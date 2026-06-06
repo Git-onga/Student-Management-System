@@ -113,7 +113,7 @@ export const Students: React.FC = () => {
   const generateUniqueAdmNum = () => {
     let adm = '';
     do {
-      adm = `IKX-2026-${Math.floor(1000 + Math.random() * 9000)}`;
+      adm = `St${Math.floor(1000 + Math.random() * 9000)}`;
     } while (students.some(s => s.admissionNumber === adm));
     return adm;
   };

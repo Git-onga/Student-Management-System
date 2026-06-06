@@ -53,12 +53,12 @@ export const getStreamById = async (req: Request, res: Response, next: NextFunct
 export const createStream = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { name, classTeacher, telephone, subject, empID, classCaptain, admNo } = req.body;
-    if (!name || !classTeacher) return next(createError('name and classTeacher are required'));
+    if (!name) return next(createError('name is required'));
     const result = await query(`
       INSERT INTO "Stream" (name, "classTeacher", telephone, subject, "empID", "classCaptain", "admNo")
       VALUES ($1, $2, $3, $4, $5, $6, $7)
       RETURNING *
-    `, [name, classTeacher, telephone || '', subject || '', empID || '', classCaptain || '', admNo || '']);
+    `, [name, classTeacher || '', telephone || '', subject || '', empID || '', classCaptain || '', admNo || '']);
     res.status(201).json(result.rows[0]);
   } catch (err: any) {
     if (err.code === '23505') return next(createError('A stream with this name already exists'));
@@ -73,7 +73,15 @@ export const updateStream = async (req: Request, res: Response, next: NextFuncti
     const { id } = req.params;
     const result = await query(`
       UPDATE "Stream"
-      SET name = $1, "classTeacher" = $2, telephone = $3, subject = $4, "empID" = $5, "classCaptain" = $6, "admNo" = $7, "updatedAt" = CURRENT_TIMESTAMP
+      SET
+        name = COALESCE($1, name),
+        "classTeacher" = COALESCE($2, "classTeacher"),
+        telephone = COALESCE($3, telephone),
+        subject = COALESCE($4, subject),
+        "empID" = COALESCE($5, "empID"),
+        "classCaptain" = COALESCE($6, "classCaptain"),
+        "admNo" = COALESCE($7, "admNo"),
+        "updatedAt" = CURRENT_TIMESTAMP
       WHERE id = $8
       RETURNING *
     `, [name, classTeacher, telephone, subject, empID, classCaptain, admNo, id]);

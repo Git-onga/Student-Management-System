@@ -509,7 +509,7 @@ export const db = {
   getTeachers: (): Teacher[] => getLocalStorage<Teacher[]>(STORAGE_KEYS.TEACHERS, []),
   getTeacher: (id: string): Teacher | undefined => db.getTeachers().find(t => t.id === id),
   getTeacherByEmpID: (empID: string): Teacher | undefined => db.getTeachers().find(t => t.empID === empID),
-  getTeachersBySubject: (subjectId: string): Teacher[] => db.getTeachers().filter(t => t.subjectId === subjectId),
+  getTeachersBySubject: (subjectId: string): Teacher[] => db.getTeachers().filter(t => t.subjectOneId || t.subjectTwoId === subjectId),
   createTeacher: (teacher: Omit<Teacher, 'id'>): Teacher => {
     const teachers = db.getTeachers();
     const newTeacher = { ...teacher, id: `tch-${Date.now()}` };
