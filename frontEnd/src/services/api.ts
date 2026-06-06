@@ -132,8 +132,8 @@ export const api = {
     return handleResponse<(Subject & { teachers: Teacher[] })[]>(await fetch(`${API_BASE_URL}/subjects`));
   },
   
-  getSubject: async (id: string): Promise<Subject & { teachers: Teacher[]; streams: Stream[] }> => {
-    return handleResponse<Subject & { teachers: Teacher[]; streams: Stream[] }>(
+  getSubject: async (id: string): Promise<Subject & { teachers: Teacher[]; streamSubjects: { stream: Stream }[] }> => {
+    return handleResponse<Subject & { teachers: Teacher[]; streamSubjects: { stream: Stream }[] }>(
       await fetch(`${API_BASE_URL}/subjects/${id}`)
     );
   },
@@ -172,7 +172,56 @@ export const api = {
     );
   },
 
-  // Teachers
+  // Class Assignments (Teacher to Stream for Subject)
+  getClassAssignments: async (subjectId: string): Promise<any[]> => {
+    return handleResponse<any[]>(
+      await fetch(`${API_BASE_URL}/subjects/${subjectId}/class-assignments`)
+    );
+  },
+
+  createClassAssignment: async (subjectId: string, teacherId: string, streamId: string): Promise<any> => {
+    return handleResponse<any>(
+      await fetch(`${API_BASE_URL}/subjects/${subjectId}/class-assignments`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ teacherId, streamId }),
+      })
+    );
+  },
+
+  deleteClassAssignment: async (subjectId: string, assignmentId: string): Promise<{ message: string }> => {
+    return handleResponse<{ message: string }>(
+      await fetch(`${API_BASE_URL}/subjects/${subjectId}/class-assignments/${assignmentId}`, {
+        method: 'DELETE',
+      })
+    );
+  },
+
+  // Timetable
+  getSubjectTimetable: async (subjectId: string): Promise<any[]> => {
+    return handleResponse<any[]>(
+      await fetch(`${API_BASE_URL}/subjects/${subjectId}/timetable`)
+    );
+  },
+
+  createTimetableSlot: async (subjectId: string, teacherId: string, streamId: string, day: string, period: number): Promise<any> => {
+    return handleResponse<any>(
+      await fetch(`${API_BASE_URL}/subjects/${subjectId}/timetable`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ teacherId, streamId, day, period }),
+      })
+    );
+  },
+
+  deleteTimetableSlot: async (subjectId: string, slotId: string): Promise<{ message: string }> => {
+    return handleResponse<{ message: string }>(
+      await fetch(`${API_BASE_URL}/subjects/${subjectId}/timetable/${slotId}`, {
+        method: 'DELETE',
+      })
+    );
+  },
+
   getTeachers: async (filters?: { subjectId?: string }): Promise<Teacher[]> => {
     const params = new URLSearchParams();
     if (filters?.subjectId) params.append('subjectId', filters.subjectId);

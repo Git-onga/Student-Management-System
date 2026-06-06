@@ -7,7 +7,8 @@ export const getAllTeachers = async (req: Request, res: Response, next: NextFunc
   try {
     const { subjectId } = req.query;
     let sql = `
-      SELECT t.*, row_to_json(s.*) as subject
+      SELECT t.*, row_to_json(s.*) as subject,
+        COALESCE((SELECT COUNT(*) FROM "Timetable" tt WHERE tt."teacherId" = t.id), 0) as "lessonCount"
       FROM "Teacher" t
       LEFT JOIN "Subject" s ON t."subjectId" = s.id
       WHERE 1=1
@@ -30,6 +31,7 @@ export const getTeacherById = async (req: Request, res: Response, next: NextFunc
     const result = await query(`
       SELECT t.*,
         row_to_json(s.*) as subject,
+        COALESCE((SELECT COUNT(*) FROM "Timetable" tt WHERE tt."teacherId" = t.id), 0) as "lessonCount",
         COALESCE(
           (SELECT json_agg(json_build_object('subject', row_to_json(su.*)))
            FROM "SubjectTeacher" st

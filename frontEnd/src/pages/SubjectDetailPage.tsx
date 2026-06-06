@@ -13,7 +13,11 @@ import {
   Phone, 
   Layers,
   GraduationCap,
-  Loader2
+  Loader2,
+  X,
+  Plus,
+  Trash2,
+  Calendar
 } from 'lucide-react';
 
 interface StudentPerformance {
@@ -31,6 +35,28 @@ interface StudentPerformance {
   term: string;
 }
 
+interface ClassAssignment {
+  id: string;
+  teacherId: string;
+  subjectId: string;
+  streamId: string;
+  teacher?: Teacher;
+  stream?: Stream;
+  createdAt: string;
+}
+
+interface TimetableSlot {
+  id: string;
+  teacherId: string;
+  subjectId: string;
+  streamId: string;
+  day: string;
+  period: number;
+  teacher?: Teacher;
+  stream?: Stream;
+  createdAt: string;
+}
+
 export const SubjectDetailPage: React.FC = () => {
   const { subjectId } = useParams<{ subjectId: string }>();
   const navigate = useNavigate();
@@ -39,6 +65,19 @@ export const SubjectDetailPage: React.FC = () => {
   const [performanceData, setPerformanceData] = useState<StudentPerformance[]>([]);
   const [assignedStreams, setAssignedStreams] = useState<Stream[]>([]);
   const [assignedTeachers, setAssignedTeachers] = useState<Teacher[]>([]);
+
+  // New state for class assignments and timetable
+  const [classAssignments, setClassAssignments] = useState<ClassAssignment[]>([]);
+  const [timetableSlots, setTimetableSlots] = useState<TimetableSlot[]>([]);
+  const [allTeachers, setAllTeachers] = useState<Teacher[]>([]);
+  const [allStreams, setAllStreams] = useState<Stream[]>([]);
+  const [selectedTeacherForAssignment, setSelectedTeacherForAssignment] = useState('');
+  const [selectedStreamForAssignment, setSelectedStreamForAssignment] = useState('');
+  const [selectedTeacherForTimetable, setSelectedTeacherForTimetable] = useState('');
+  const [selectedStreamForTimetable, setSelectedStreamForTimetable] = useState('');
+  const [selectedDayForTimetable, setSelectedDayForTimetable] = useState('Monday');
+  const [selectedPeriodForTimetable, setSelectedPeriodForTimetable] = useState(1);
+  const [timetablePopoverOpen, setTimetablePopoverOpen] = useState<string | null>(null);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -63,7 +102,37 @@ export const SubjectDetailPage: React.FC = () => {
       
       // Fetch performance analytics for this subject
       const perf = await api.getSubjectPerformance(subjectId, 'Term 1 2026');
-      setPerformanceData(perf);
+      const mapped: StudentPerformance[] = (perf.scores || []).map((sc: any) => ({
+        studentId: sc.student?.id || '',
+        admissionNumber: sc.student?.admissionNumber || '',
+        name: `${sc.student?.firstName || ''} ${sc.student?.lastName || ''}`.trim(),
+        gender: sc.student?.gender || '',
+        streamId: sc.student?.stream?.id || '',
+        streamName: sc.student?.stream?.name || '',
+        caScore: sc.caScore,
+        examScore: sc.examScore,
+        totalScore: sc.total,
+        grade: sc.grade,
+        remark: sc.remark,
+        term: 'Term 1 2026',
+      }));
+      setPerformanceData(mapped);
+
+      // Fetch class assignments and timetable for this subject
+      const assignments = await api.getClassAssignments(subjectId);
+      setClassAssignments(assignments);
+
+      const timetable = await api.getSubjectTimetable(subjectId);
+      setTimetableSlots(timetable);
+
+      // Fetch all teachers and streams for dropdowns
+      const teachers = await api.getTeachers();
+      // Filter to only show teachers teaching this specific subject
+      const filteredTeachers = teachers.filter(t => t.subjectId === subjectId);
+      setAllTeachers(filteredTeachers);
+
+      const streams = await api.getStreams();
+      setAllStreams(streams);
     } catch (err: any) {
       console.error(err);
       setError(err.message || 'Failed to load subject details');
@@ -75,6 +144,59 @@ export const SubjectDetailPage: React.FC = () => {
   useEffect(() => {
     fetchSubjectDetails();
   }, [subjectId]);
+
+  const handleCreateClassAssignment = async () => {
+    if (!subjectId || !selectedTeacherForAssignment || !selectedStreamForAssignment) return;
+    try {
+      await api.createClassAssignment(subjectId, selectedTeacherForAssignment, selectedStreamForAssignment);
+      setSelectedTeacherForAssignment('');
+      setSelectedStreamForAssignment('');
+      await fetchSubjectDetails();
+    } catch (err) {
+      console.error('Failed to create assignment:', err);
+    }
+  };
+
+  const handleDeleteClassAssignment = async (assignmentId: string) => {
+    if (!subjectId) return;
+    try {
+      await api.deleteClassAssignment(subjectId, assignmentId);
+      await fetchSubjectDetails();
+    } catch (err) {
+      console.error('Failed to delete assignment:', err);
+    }
+  };
+
+  const handleCreateTimetableSlot = async () => {
+    if (!subjectId || !selectedTeacherForTimetable || !selectedStreamForTimetable) return;
+    try {
+      await api.createTimetableSlot(
+        subjectId, 
+        selectedTeacherForTimetable, 
+        selectedStreamForTimetable, 
+        selectedDayForTimetable, 
+        selectedPeriodForTimetable
+      );
+      setSelectedTeacherForTimetable('');
+      setSelectedStreamForTimetable('');
+      setSelectedDayForTimetable('Monday');
+      setSelectedPeriodForTimetable(1);
+      setTimetablePopoverOpen(null);
+      await fetchSubjectDetails();
+    } catch (err) {
+      console.error('Failed to create timetable slot:', err);
+    }
+  };
+
+  const handleDeleteTimetableSlot = async (slotId: string) => {
+    if (!subjectId) return;
+    try {
+      await api.deleteTimetableSlot(subjectId, slotId);
+      await fetchSubjectDetails();
+    } catch (err) {
+      console.error('Failed to delete timetable slot:', err);
+    }
+  };
 
   if (loading) {
     return (
@@ -170,7 +292,7 @@ export const SubjectDetailPage: React.FC = () => {
                 borderRadius: '6px',
                 border: '1px solid rgba(6, 182, 212, 0.15)'
               }}>
-                {subject.code}
+                {subject.id}
               </span>
             </div>
             <p style={{ color: 'var(--text-muted)', fontSize: '14px', marginTop: '6px', marginBottom: 0 }}>
@@ -456,6 +578,315 @@ export const SubjectDetailPage: React.FC = () => {
 
         </div>
       </div>
+
+      {/* NEW SECTIONS: MANAGE TEACHERS, CLASS ALLOCATION, AND TIMETABLE */}
+
+      {/* MANAGE SUBJECT TEACHERS SECTION */}
+      <div className="panel" style={{ marginBottom: '24px', marginTop: '24px' }}>
+        <h3 style={{ fontSize: '18px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+          <Users size={18} /> Manage Subject Teachers
+        </h3>
+        
+        <div style={{ display: 'flex', gap: '12px', marginBottom: '16px', flexWrap: 'wrap' }}>
+          <select
+            className="form-control"
+            value={selectedTeacherForAssignment}
+            onChange={(e) => setSelectedTeacherForAssignment(e.target.value)}
+            style={{ flex: 1, minWidth: '200px' }}
+          >
+            <option value="">Select a teacher to add...</option>
+            {allTeachers.filter(t => !classAssignments.find(a => a.teacherId === t.id)).map(teacher => (
+              <option key={teacher.id} value={teacher.id}>{teacher.name} ({teacher.empID})</option>
+            ))}
+          </select>
+          <button 
+            className="btn btn-primary" 
+            onClick={handleCreateClassAssignment}
+            disabled={!selectedTeacherForAssignment}
+          >
+            <Plus size={16} /> Add Teacher
+          </button>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '12px' }}>
+          {classAssignments.map(assignment => (
+            <div 
+              key={assignment.id}
+              style={{
+                padding: '12px',
+                borderRadius: '8px',
+                border: '1px solid var(--border-color)',
+                background: 'rgba(255,255,255,0.01)',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center'
+              }}
+            >
+              <div>
+                <div style={{ fontWeight: 'bold', fontSize: '13px' }}>{assignment.teacher?.name}</div>
+                <div style={{ fontSize: '11px', color: 'var(--text-dim)', marginTop: '4px' }}>ID: {assignment.teacher?.empID}</div>
+              </div>
+              <button 
+                className="btn btn-ghost" 
+                onClick={() => handleDeleteClassAssignment(assignment.id)}
+                style={{ padding: '4px 8px', color: 'var(--color-accent)' }}
+              >
+                <X size={14} />
+              </button>
+            </div>
+          ))}
+          {classAssignments.length === 0 && (
+            <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '20px', color: 'var(--text-dim)', fontSize: '13px', fontStyle: 'italic' }}>
+              No teachers assigned yet.
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* CLASS ALLOCATION SECTION */}
+      <div className="panel" style={{ marginBottom: '24px' }}>
+        <h3 style={{ fontSize: '18px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+          <Layers size={18} /> Class Allocation
+        </h3>
+        
+        <div style={{ marginBottom: '16px' }}>
+          <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '12px' }}>
+            Assign teachers to specific class streams for this subject.
+          </p>
+          <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+            <select
+              className="form-control"
+              value={selectedTeacherForAssignment}
+              onChange={(e) => setSelectedTeacherForAssignment(e.target.value)}
+              style={{ flex: 1, minWidth: '200px' }}
+            >
+              <option value="">Select teacher...</option>
+              {allTeachers.map(teacher => (
+                <option key={teacher.id} value={teacher.id}>{teacher.name}</option>
+              ))}
+            </select>
+            <select
+              className="form-control"
+              value={selectedStreamForAssignment}
+              onChange={(e) => setSelectedStreamForAssignment(e.target.value)}
+              style={{ flex: 1, minWidth: '200px' }}
+            >
+              <option value="">Select stream...</option>
+              {allStreams.map(stream => (
+                <option key={stream.id} value={stream.id}>{stream.name}</option>
+              ))}
+            </select>
+            <button 
+              className="btn btn-primary" 
+              onClick={handleCreateClassAssignment}
+              disabled={!selectedTeacherForAssignment || !selectedStreamForAssignment}
+            >
+              <Plus size={16} /> Assign
+            </button>
+          </div>
+        </div>
+
+        {/* Allocation Grid */}
+        <div style={{ overflowX: 'auto' }}>
+          <table className="custom-table" style={{ marginBottom: 0 }}>
+            <thead>
+              <tr>
+                <th>Teacher Name</th>
+                <th>Emp ID</th>
+                {assignedStreams.map(stream => (
+                  <th key={stream.id} style={{ textAlign: 'center' }}>{stream.name}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {allTeachers.length > 0 ? allTeachers.map(teacher => (
+                <tr key={teacher.id}>
+                  <td style={{ fontWeight: 'bold' }}>{teacher.name}</td>
+                  <td style={{ fontSize: '12px', color: 'var(--text-dim)' }}>{teacher.empID}</td>
+                  {assignedStreams.map(stream => {
+                    const hasAssignment = classAssignments.find(
+                      a => a.teacherId === teacher.id && a.streamId === stream.id
+                    );
+                    return (
+                      <td key={stream.id} style={{ textAlign: 'center' }}>
+                        {hasAssignment ? (
+                          <span style={{ color: 'var(--color-success)', fontWeight: 'bold', fontSize: '12px' }}>✓ Assigned</span>
+                        ) : (
+                          <span style={{ color: 'var(--text-dim)', fontSize: '11px' }}>—</span>
+                        )}
+                      </td>
+                    );
+                  })}
+                </tr>
+              )) : (
+                <tr>
+                  <td colSpan={2 + assignedStreams.length} style={{ textAlign: 'center', padding: '20px', color: 'var(--text-dim)', fontSize: '13px' }}>
+                    No teachers available.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* TEACHING TIMETABLE SECTION */}
+      <div className="panel" style={{ marginBottom: '24px' }}>
+        <h3 style={{ fontSize: '18px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+          <Calendar size={18} /> Teaching Timetable
+        </h3>
+        
+        <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '16px' }}>
+          Standard school timetable (Monday–Friday, 8 periods per day). Click an empty cell to schedule a lesson.
+        </p>
+
+        <div style={{ overflowX: 'auto' }}>
+          <table className="custom-table" style={{ marginBottom: 0, minWidth: '600px' }}>
+            <thead>
+              <tr>
+                <th style={{ minWidth: '80px' }}>Period</th>
+                <th style={{ textAlign: 'center', minWidth: '120px' }}>Monday</th>
+                <th style={{ textAlign: 'center', minWidth: '120px' }}>Tuesday</th>
+                <th style={{ textAlign: 'center', minWidth: '120px' }}>Wednesday</th>
+                <th style={{ textAlign: 'center', minWidth: '120px' }}>Thursday</th>
+                <th style={{ textAlign: 'center', minWidth: '120px' }}>Friday</th>
+              </tr>
+            </thead>
+            <tbody>
+              {Array.from({ length: 8 }, (_, i) => i + 1).map(period => (
+                <tr key={period}>
+                  <td style={{ fontWeight: 'bold', background: 'rgba(255,255,255,0.02)' }}>Period {period}</td>
+                  {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'].map(day => {
+                    const slot = timetableSlots.find(s => s.day === day && s.period === period);
+                    const cellId = `${day}-${period}`;
+                    
+                    return (
+                      <td 
+                        key={cellId}
+                        style={{ 
+                          textAlign: 'center', 
+                          cursor: 'pointer',
+                          padding: '8px',
+                          background: slot ? 'rgba(16, 185, 129, 0.08)' : 'transparent',
+                          border: slot ? '1px solid rgba(16, 185, 129, 0.2)' : '1px solid transparent',
+                          borderRadius: '4px',
+                          minHeight: '50px',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          justifyContent: 'center',
+                          alignItems: 'center',
+                          gap: '4px',
+                          position: 'relative'
+                        }}
+                        onClick={() => !slot && setTimetablePopoverOpen(cellId)}
+                      >
+                        {slot ? (
+                          <>
+                            <div style={{ fontWeight: 'bold', fontSize: '12px', color: 'var(--color-success)' }}>
+                              {slot.teacher?.name.split(' ')[0]}
+                            </div>
+                            <div style={{ fontSize: '11px', color: 'var(--text-dim)' }}>
+                              {slot.stream?.name}
+                            </div>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteTimetableSlot(slot.id);
+                              }}
+                              style={{
+                                background: 'transparent',
+                                border: 'none',
+                                color: 'var(--color-accent)',
+                                cursor: 'pointer',
+                                fontSize: '10px',
+                                padding: '2px 4px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '2px'
+                              }}
+                            >
+                              <X size={10} /> Remove
+                            </button>
+                          </>
+                        ) : (
+                          <div style={{ fontSize: '11px', color: 'var(--text-dim)', fontStyle: 'italic' }}>
+                            Click to add
+                          </div>
+                        )}
+                        
+                        {timetablePopoverOpen === cellId && (
+                          <div style={{
+                            position: 'absolute',
+                            top: '100%',
+                            left: '50%',
+                            transform: 'translateX(-50%)',
+                            background: 'var(--bg-panel)',
+                            border: '1px solid var(--border-color)',
+                            borderRadius: '8px',
+                            padding: '12px',
+                            marginTop: '8px',
+                            zIndex: 1000,
+                            minWidth: '220px',
+                            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '8px'
+                          }}>
+                            <select
+                              className="form-control"
+                              value={selectedTeacherForTimetable}
+                              onChange={(e) => setSelectedTeacherForTimetable(e.target.value)}
+                              style={{ fontSize: '12px', padding: '6px' }}
+                            >
+                              <option value="">Teacher...</option>
+                              {allTeachers.map(teacher => (
+                                <option key={teacher.id} value={teacher.id}>{teacher.name}</option>
+                              ))}
+                            </select>
+                            <select
+                              className="form-control"
+                              value={selectedStreamForTimetable}
+                              onChange={(e) => setSelectedStreamForTimetable(e.target.value)}
+                              style={{ fontSize: '12px', padding: '6px' }}
+                            >
+                              <option value="">Stream...</option>
+                              {assignedStreams.map(stream => (
+                                <option key={stream.id} value={stream.id}>{stream.name}</option>
+                              ))}
+                            </select>
+                            <div style={{ display: 'flex', gap: '6px' }}>
+                              <button
+                                className="btn btn-primary"
+                                onClick={handleCreateTimetableSlot}
+                                disabled={!selectedTeacherForTimetable || !selectedStreamForTimetable}
+                                style={{ flex: 1, fontSize: '12px', padding: '6px' }}
+                              >
+                                Schedule
+                              </button>
+                              <button
+                                className="btn btn-secondary"
+                                onClick={() => {
+                                  setTimetablePopoverOpen(null);
+                                  setSelectedTeacherForTimetable('');
+                                  setSelectedStreamForTimetable('');
+                                }}
+                                style={{ fontSize: '12px', padding: '6px' }}
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </>
   );
 };
+

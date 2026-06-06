@@ -1,5 +1,7 @@
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
+DROP TABLE IF EXISTS "Timetable" CASCADE;
+DROP TABLE IF EXISTS "TeacherClassAssignment" CASCADE;
 DROP TABLE IF EXISTS "GradingScale" CASCADE;
 DROP TABLE IF EXISTS "Score" CASCADE;
 DROP TABLE IF EXISTS "StreamSubject" CASCADE;
@@ -93,3 +95,29 @@ CREATE TABLE "GradingScale" (
     "maxScore" DOUBLE PRECISION NOT NULL,
     "remark" VARCHAR(255) NOT NULL
 );
+
+CREATE TABLE "TeacherClassAssignment" (
+    "id" VARCHAR(255) PRIMARY KEY DEFAULT REPLACE(uuid_generate_v4()::text, '-', ''),
+    "teacherId" VARCHAR(255) NOT NULL,
+    "subjectId" VARCHAR(255) NOT NULL,
+    "streamId" VARCHAR(255) NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "TeacherClassAssignment_teacherId_fkey" FOREIGN KEY ("teacherId") REFERENCES "Teacher"("id") ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT "TeacherClassAssignment_subjectId_fkey" FOREIGN KEY ("subjectId") REFERENCES "Subject"("id") ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT "TeacherClassAssignment_streamId_fkey" FOREIGN KEY ("streamId") REFERENCES "Stream"("id") ON DELETE CASCADE ON UPDATE CASCADE
+);
+CREATE UNIQUE INDEX "TeacherClassAssignment_teacher_subject_stream_key" ON "TeacherClassAssignment"("teacherId", "subjectId", "streamId");
+
+CREATE TABLE "Timetable" (
+    "id" VARCHAR(255) PRIMARY KEY DEFAULT REPLACE(uuid_generate_v4()::text, '-', ''),
+    "teacherId" VARCHAR(255) NOT NULL,
+    "subjectId" VARCHAR(255) NOT NULL,
+    "streamId" VARCHAR(255) NOT NULL,
+    "day" VARCHAR(255) NOT NULL,
+    "period" INTEGER NOT NULL,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "Timetable_teacherId_fkey" FOREIGN KEY ("teacherId") REFERENCES "Teacher"("id") ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT "Timetable_subjectId_fkey" FOREIGN KEY ("subjectId") REFERENCES "Subject"("id") ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT "Timetable_streamId_fkey" FOREIGN KEY ("streamId") REFERENCES "Stream"("id") ON DELETE CASCADE ON UPDATE CASCADE
+);
+CREATE UNIQUE INDEX "Timetable_stream_day_period_key" ON "Timetable"("streamId", "day", "period");

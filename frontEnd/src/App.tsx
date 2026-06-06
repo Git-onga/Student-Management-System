@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import { StreamDetailPage } from './pages/StreamDetailPage';
 import { SubjectDetailPage } from './pages/SubjectDetailPage';
+import { Teachers } from './pages/Teachers.tsx';
 import { Dashboard } from './pages/Dashboard';
 import { Streams } from './pages/Streams';
 import { Students } from './pages/Students';
@@ -21,6 +22,8 @@ const App: React.FC = () => {
         setActivePage('subjects');
       } else if (segment === 'streams' || segment.startsWith('stream-detail')) {
         setActivePage('streams');
+      } else if (segment === 'teachers') {
+        setActivePage('teachers');
       } else if (segment === 'students') {
         setActivePage('students');
       } else if (segment === 'assessments') {
@@ -34,6 +37,7 @@ const App: React.FC = () => {
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: <Book size={18} /> },
     { id: 'streams', label: 'Class Streams', icon: <GraduationCap size={18} /> },
+    { id: 'teachers', label: 'Teachers', icon: <Users size={18} /> },
     { id: 'students', label: 'Students', icon: <Users size={18} /> },
     { id: 'subjects', label: 'Subjects', icon: <BookOpen size={18} /> },
     { id: 'assessments', label: 'Assessments', icon: <Edit3 size={18} /> },
@@ -45,6 +49,8 @@ const App: React.FC = () => {
         return <Dashboard onNavigate={(page) => setActivePage(page)} />;
       case 'streams':
         return <Streams />;
+      case 'teachers':
+        return <Teachers />;
       case 'students':
         return <Students />;
       case 'subjects':
@@ -91,6 +97,7 @@ const App: React.FC = () => {
           <Routes>
             <Route path="/dashboard" element={<Dashboard onNavigate={setActivePage} />} />
             <Route path="/streams" element={<Streams />} />
+            <Route path="/teachers" element={<Teachers />} />
             <Route path="/students" element={<Students />} />
             <Route path="/subjects" element={<Subjects />} />
             <Route path="/assessments" element={<Assessments />} />
