@@ -86,7 +86,8 @@ export const Teachers: React.FC = () => {
     return streams.filter(stream => 
       stream.classTeacher === teacher.name || 
       stream.classTeacher === teacher.empID ||
-      stream.classTeacher === teacher.id
+      stream.classTeacher === teacher.id ||
+      stream.classTeacher === teacher.telephone
     );
   };
 
@@ -105,8 +106,8 @@ export const Teachers: React.FC = () => {
     event.preventDefault();
     setFormError('');
 
-    if (!empID.trim() || !name.trim() || !subjectOneId || !subjectTwoId) {
-      setFormError('Employee ID, name and both subjects are required.');
+    if (!empID.trim() || !name.trim() || !telephone.trim() || !subjectOneId || !subjectTwoId) {
+      setFormError('Employee ID, name, telephone and both subjects are required.');
       return;
     }
     if (subjectOneId === subjectTwoId) {
@@ -215,7 +216,7 @@ export const Teachers: React.FC = () => {
               <div style={{ fontSize: '12px', fontWeight: '700', color: 'var(--text-dim)' }}>Scheduled Lessons</div>
             </div>
             <div style={{ fontSize: '28px', fontWeight: '800' }}>{totalLessons}</div>
-            <div style={{ marginTop: '6px', fontSize: '12px', color: 'var(--text-muted)' }}>Total subject lessons assigned across teachers</div>
+            <div style={{ marginTop: '6px', fontSize: '12px', color: 'var(--text-muted)' }}>Total subject lessons assigned across teachers per week</div>
           </div>
 
           <div style={{ padding: '18px', borderRadius: '16px', background: 'rgba(59, 130, 246, 0.08)', border: '1px solid rgba(59, 130, 246, 0.15)' }}>
@@ -383,6 +384,15 @@ export const Teachers: React.FC = () => {
                     />
                   </div>
                 </div>
+                <div>
+                    <label className="form-label">Telephone</label>
+                    <input
+                      className="form-control"
+                      value={telephone}
+                      onChange={(e) => setTelephone(e.target.value)}
+                      placeholder="Teacher telephone"
+                    />
+                  </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
                   <div>

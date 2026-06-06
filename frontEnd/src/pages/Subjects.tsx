@@ -59,10 +59,6 @@ export const Subjects: React.FC = () => {
     e.preventDefault();
     setFormError('');
 
-    if (!code.trim()) {
-      setFormError('Subject code is required.');
-      return;
-    }
     if (!name.trim()) {
       setFormError('Subject name is required.');
       return;
@@ -228,17 +224,6 @@ export const Subjects: React.FC = () => {
             )}
 
             <form onSubmit={handleSaveSubject}>
-              <div className="form-group">
-                <label className="form-label">Subject Code</label>
-                <input 
-                  type="text" 
-                  className="form-control" 
-                  placeholder="e.g. MATH101, PHY201" 
-                  value={code}
-                  onChange={(e) => setCode(e.target.value)}
-                />
-              </div>
-
               <div className="form-group">
                 <label className="form-label">Subject Name</label>
                 <input 

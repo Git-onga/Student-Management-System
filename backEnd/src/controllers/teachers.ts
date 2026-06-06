@@ -74,9 +74,9 @@ export const createTeacher = async (req: Request, res: Response, next: NextFunct
 // PUT /api/teachers/:id
 export const updateTeacher = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { empID, name, subjectOneId, subjectTwoId, telephone } = req.body;
+    const { empID, name, telephone, subjectOneId, subjectTwoId } = req.body;
     const { id } = req.params;
-    if (!empID || !name || !subjectOneId || !subjectTwoId) return next(createError('empID, name, subjectOneId, and subjectTwoId are required'));
+    if (!empID || !name || !telephone || !subjectOneId || !subjectTwoId) return next(createError('empID, name, telephone, subjectOneId, and subjectTwoId are required'));
     if (subjectOneId === subjectTwoId) return next(createError('A teacher must teach two different subjects'));
 
     const subjectCheck = await query(`SELECT id FROM "Subject" WHERE id = ANY($1::text[])`, [[subjectOneId, subjectTwoId]]);
@@ -84,10 +84,10 @@ export const updateTeacher = async (req: Request, res: Response, next: NextFunct
 
     const result = await query(`
       UPDATE "Teacher"
-      SET "empID" = $1, name = $2, "subjectOneId" = $3, "subjectTwoId" = $4, telephone = $5, "updatedAt" = CURRENT_TIMESTAMP
+      SET "empID" = $1, name = $2, telephone = $3, "subjectOneId" = $4, "subjectTwoId" = $5, "updatedAt" = CURRENT_TIMESTAMP
       WHERE id = $6
       RETURNING *
-    `, [empID, name, subjectOneId, subjectTwoId, telephone, id]);
+    `, [empID, name, telephone, subjectOneId, subjectTwoId, id]);
     
     if (result.rows.length === 0) return next(createError('Teacher not found', 404));
     

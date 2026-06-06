@@ -121,16 +121,16 @@ export const getSubjectPerformance = async (req: Request, res: Response, next: N
 // POST /api/subjects
 export const createSubject = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { code, name, description } = req.body;
-    if (!code || !name) return next(createError('code and name are required'));
+    const {name, description } = req.body;
+    if (!name) return next(createError('code and name are required'));
     const result = await query(`
-      INSERT INTO "Subject" (code, name, description)
-      VALUES ($1, $2, $3)
+      INSERT INTO "Subject" (name, description)
+      VALUES ($1, $2)
       RETURNING *
-    `, [code, name, description || '']);
+    `, [name, description || '']);
     res.status(201).json(result.rows[0]);
   } catch (err: any) {
-    if (err.code === '23505') return next(createError('A subject with this code already exists'));
+    next(createError('A subject with this code already exists'));
     next(err);
   }
 };
