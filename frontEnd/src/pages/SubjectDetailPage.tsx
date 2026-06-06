@@ -259,7 +259,7 @@ export const SubjectDetailPage: React.FC = () => {
   });
 
   return (
-    <>
+    <div className="subject-detail-page" style={{ overflowY: "auto", maxHeight: "100vh" }}>
       <button className="btn btn-secondary" onClick={() => navigate('/subjects')} style={{ marginBottom: '16px' }}>
         <ArrowLeft size={15} /> Back to Subjects
       </button>
@@ -663,7 +663,7 @@ export const SubjectDetailPage: React.FC = () => {
           </table>
         </div>
       </div>      
-    </>
+    </div>
   );
 };
 

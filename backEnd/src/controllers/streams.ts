@@ -133,3 +133,22 @@ export const removeSubjectFromStream = async (req: Request, res: Response, next:
     res.json({ message: 'Subject removed from stream' });
   } catch (err) { next(err); }
 };
+export const getSubjectsForStream = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { id } = req.params;
+    const result = await query(`
+      SELECT json_agg(json_build_object(
+        'id', su.id,
+        'name', su.name,
+        'description', su.description
+      )) as subjects
+      FROM "StreamSubject" ss
+      JOIN "Subject" su ON ss."subjectId" = su.id
+      WHERE ss."streamId" = $1
+    `, [id]);
+    const subjects = result.rows[0]?.subjects || [];
+    res.json(subjects);
+  } catch (err) {
+    next(err);
+  }
+};

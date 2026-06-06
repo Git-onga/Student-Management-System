@@ -36,6 +36,13 @@
   --radius-md: 14px;
   --radius-lg: 20px;
   --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* Semantic UI Tokens (Theme-aware) */
+  --bg-panel: var(--bg-dark-surface);
+  --bg-card-accent: rgba(255, 255, 255, 0.03);
+  --bg-card-accent-border: rgba(255, 255, 255, 0.06);
+  --bg-card-hover: rgba(255, 255, 255, 0.015);
+  --bg-table-header: rgba(255, 255, 255, 0.02);
 }
 
 /* Base Styles */
@@ -414,6 +421,12 @@ body {
   --text-dim: #64748b;
 
   --shadow-glow: 0 0 20px rgba(99, 102, 241, 0.06);
+
+  --bg-panel: var(--bg-dark-surface);
+  --bg-card-accent: rgba(15, 23, 42, 0.02);
+  --bg-card-accent-border: rgba(15, 23, 42, 0.06);
+  --bg-card-hover: rgba(15, 23, 42, 0.01);
+  --bg-table-header: rgba(15, 23, 42, 0.02);
 
   background-color: var(--bg-dark-base);
 }

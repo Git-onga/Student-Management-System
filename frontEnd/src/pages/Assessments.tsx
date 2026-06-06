@@ -86,8 +86,7 @@ export const Assessments: React.FC = () => {
     if (selectedStreamId) {
       const loadStreamSubjects = async () => {
         try {
-          const detail = await api.getStream(selectedStreamId);
-          const subs = detail.subjects || [];
+          const subs = await api.getStreamSubjects(selectedStreamId);
           setAvailableSubjects(subs);
           setSelectedSubjectId(subs.length > 0 ? subs[0].id : '');
         } catch (err) {
@@ -111,7 +110,7 @@ export const Assessments: React.FC = () => {
       setGridRows([]);
       return;
     }
-    
+
     let active = true;
     const loadGrid = async () => {
       try {
@@ -120,9 +119,9 @@ export const Assessments: React.FC = () => {
           api.getStudents({ streamId: selectedStreamId, status: 'active' }),
           api.getScores({ streamId: selectedStreamId, subjectId: selectedSubjectId, term: selectedTerm }),
         ]);
-        
+
         if (!active) return;
-        
+
         setGridRows(students.map(student => {
           const scoreObj = existingScores.find(s => s.studentId === student.id);
           return {
@@ -136,8 +135,8 @@ export const Assessments: React.FC = () => {
           };
         }));
       } catch (err: any) {
-        console.error(err);
-        if (active) setErrorMessage('Failed to load students/scores grid');
+        console.error('Error loading grid:', err);
+        setErrorMessage(err?.message || 'Failed to load students/scores grid');
       } finally {
         if (active) setLoadingGrid(false);
       }
@@ -180,11 +179,11 @@ export const Assessments: React.FC = () => {
       if (field === 'ca') {
         updated.caScoreRaw = value;
         const num = parseFloat(value);
-        updated.caError = value.trim() === '' ? '' : (isNaN(num) ? 'Must be a number' : (num < 0 || num > 40) ? 'CA: 0–40' : '');
+        updated.caError = value.trim() === '' ? '' : (isNaN(num) ? 'Must be number' : (num < 0 || num > 100) ? 'Midterm: 0-40' : '');
       } else {
         updated.examScoreRaw = value;
         const num = parseFloat(value);
-        updated.examError = value.trim() === '' ? '' : (isNaN(num) ? 'Must be a number' : (num < 0 || num > 60) ? 'Exam: 0–60' : '');
+        updated.examError = value.trim() === '' ? '' : (isNaN(num) ? 'Must be number' : (num < 0 || num > 100) ? 'Endterm: 0-60' : '');
       }
       return updated;
     }));
@@ -235,7 +234,7 @@ export const Assessments: React.FC = () => {
     const ca = parseFloat(row.caScoreRaw);
     const exam = parseFloat(row.examScoreRaw);
     if (isNaN(ca) || isNaN(exam)) return { total: '-', grade: '-' };
-    const total = ca + exam;
+    const total = ((ca * .4) + (exam * .6));
     const { grade } = getGradeForScore(total, gradingScale);
     return { total: Math.round(total * 10) / 10, grade };
   };
@@ -404,13 +403,13 @@ export const Assessments: React.FC = () => {
                   </span>
                 )}
               </div>
-              
+
               <div className="score-grid-container">
                 <div className="score-grid-header">
                   <div>Student Full Name</div>
                   <div style={{ textAlign: 'center' }}>Admission No</div>
-                  <div style={{ textAlign: 'center' }}>CA Score (Max 40)</div>
-                  <div style={{ textAlign: 'center' }}>Exam Score (Max 60)</div>
+                  <div style={{ textAlign: 'center' }}>Midterm Exam</div>
+                  <div style={{ textAlign: 'center' }}>Endterm Exam</div>
                   <div style={{ textAlign: 'center' }}>Total Score</div>
                   <div style={{ textAlign: 'center' }}>Grade</div>
                 </div>
@@ -444,7 +443,7 @@ export const Assessments: React.FC = () => {
                   <div style={{ gridColumn: '1 / span 6', padding: '40px', textAlign: 'center', color: 'var(--text-muted)' }}>No active students enrolled in this stream.</div>
                 )}
               </div>
-              
+
               {!loadingGrid && gridRows.length > 0 && (
                 <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '20px' }}>
                   <button className="btn btn-primary" onClick={handleSaveGrid} disabled={errorCount > 0 || loadingGrid}>

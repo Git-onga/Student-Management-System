@@ -1,8 +1,5 @@
 import { Router } from 'express';
-import {
-  getAllStreams, getStreamById, createStream, updateStream, deleteStream,
-  assignSubjectToStream, removeSubjectFromStream,
-} from '../controllers/streams';
+import { getAllStreams, getStreamById, createStream, updateStream, deleteStream, assignSubjectToStream, removeSubjectFromStream, getSubjectsForStream } from '../controllers/streams';
 import { getStreamTimetable } from '../controllers/timetable';
 
 const router = Router();
@@ -14,6 +11,7 @@ router.put('/:id', updateStream);
 router.delete('/:id', deleteStream);
 router.post('/:id/subjects', assignSubjectToStream);
 router.delete('/:id/subjects/:subjectId', removeSubjectFromStream);
+router.get('/:id/subjects', getSubjectsForStream);
 router.get('/:id/timetable', getStreamTimetable);
 
 export default router;

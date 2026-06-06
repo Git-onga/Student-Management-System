@@ -40,6 +40,7 @@ CREATE TABLE "Student" (
 
 CREATE TABLE "Subject" (
     "id" VARCHAR(255) PRIMARY KEY DEFAULT REPLACE(uuid_generate_v4()::text, '-', ''),
+    "code" VARCHAR(50) NOT NULL,
     "name" VARCHAR(255) NOT NULL,
     "description" TEXT NOT NULL DEFAULT '',
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,

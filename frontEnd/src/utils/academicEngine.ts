@@ -51,12 +51,18 @@ export const getGradeForScore = (score: number, scale: GradingScale[]): { grade:
     return { grade: matched.grade, remark: matched.remark };
   }
   // Fallbacks
-  if (score >= 80) return { grade: 'A', remark: 'Excellent' };
-  if (score >= 70) return { grade: 'B', remark: 'Very Good' };
-  if (score >= 60) return { grade: 'C', remark: 'Good' };
-  if (score >= 50) return { grade: 'D', remark: 'Credit' };
-  if (score >= 40) return { grade: 'E', remark: 'Pass' };
-  return { grade: 'F', remark: 'Fail' };
+  if (score >= 80) return { grade: 'A', remark: 'Outstanding' };
+  if (score >= 75) return { grade: 'A-', remark: 'Excellent' };
+  if (score >= 70) return { grade: 'B+', remark: 'Very Good' };
+  if (score >= 65) return { grade: 'B', remark: 'Good'}
+  if (score >= 60) return { grade: 'B-', remark: 'Fair' };
+  if (score >= 55) return { grade: 'C+', remark: 'Pass'}
+  if (score >= 50) return { grade: 'C', remark: 'Work Harder' };
+  if (score >= 45) return { grade: 'C-', remark: 'Pull up ur Sock'}
+  if (score >= 40) return { grade: 'D+', remark: 'Need improvement' };
+  if (score >= 35) return { grade: 'D', remark: 'Get Serious'};
+  if (score >= 30) return { grade: 'D-', remark: 'Dissapointing'};
+  if (score < 30) return { grade: 'E', remark: 'Fail' };
 };
 
 // 2. Helper to compute ranks with tie resolution
@@ -134,11 +140,11 @@ export const getStudentAcademicReport = async (studentId: string, term = 'Term 1
   const subjects = allSubjects.filter(sub => subjectIdsWithScores.includes(sub.id));
 
   // If no scores exist yet, fall back to showing all subjects assigned to stream from stream detail
-  let activeSubjects = subjects;
+  let activeSubjects: Subject[] = subjects;
   if (streamId && activeSubjects.length === 0) {
     try {
       const detail = await api.getStream(streamId);
-      activeSubjects = detail.subjects || [];
+      activeSubjects = (detail.subjects as Subject[]) || [];
     } catch {
       activeSubjects = [];
     }

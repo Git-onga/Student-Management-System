@@ -14,15 +14,15 @@ export const getAllScores = async (req: Request, res: Response, next: NextFuncti
       WHERE 1=1
     `;
     const params: any[] = [];
-    
+
     if (subjectId) { params.push(String(subjectId)); sql += ` AND sc."subjectId" = $${params.length}`; }
     if (studentId) { params.push(String(studentId)); sql += ` AND sc."studentId" = $${params.length}`; }
     if (term) { params.push(String(term)); sql += ` AND sc.term = $${params.length}`; }
     if (streamId) { params.push(String(streamId)); sql += ` AND sc."studentId" IN (SELECT id FROM "Student" WHERE "streamId" = $${params.length})`; }
-    
+
     // Order by subject.name asc, student.lastName asc
     sql += ` ORDER BY (SELECT name FROM "Subject" WHERE id = sc."subjectId") ASC, (SELECT "lastName" FROM "Student" WHERE id = sc."studentId") ASC`;
-    
+
     const result = await query(sql, params);
     res.json(result.rows);
   } catch (err) { next(err); }
@@ -39,13 +39,13 @@ export const getScoreById = async (req: Request, res: Response, next: NextFuncti
       FROM "Score" sc
       WHERE sc.id = $1
     `, [id]);
-    
+
     if (result.rows.length === 0) return next(createError('Score not found', 404));
-    
+
     const score = result.rows[0];
     const streamRes = await query(`SELECT * FROM "Stream" WHERE id = $1`, [score.student.streamId]);
     score.student.stream = streamRes.rows[0];
-    
+
     res.json(score);
   } catch (err) { next(err); }
 };
@@ -57,8 +57,8 @@ export const createScore = async (req: Request, res: Response, next: NextFunctio
     if (!studentId || !subjectId || caScore === undefined || examScore === undefined || !term) {
       return next(createError('studentId, subjectId, caScore, examScore, and term are required'));
     }
-    if (caScore < 0 || caScore > 40) return next(createError('caScore must be between 0 and 40'));
-    if (examScore < 0 || examScore > 60) return next(createError('examScore must be between 0 and 60'));
+// Removed examScore validation (0-60) to allow any value
+// Removed caScore validation (0-40) if needed
 
     const result = await query(`
       INSERT INTO "Score" ("studentId", "subjectId", term, "caScore", "examScore")
@@ -73,7 +73,7 @@ export const createScore = async (req: Request, res: Response, next: NextFunctio
     const suRes = await query(`SELECT id, code, name FROM "Subject" WHERE id = $1`, [subjectId]);
     score.student = stuRes.rows[0];
     score.subject = suRes.rows[0];
-    
+
     res.status(201).json(score);
   } catch (err: any) {
     if (err.code === '23503') return next(createError('Student or Subject not found', 404));
@@ -93,8 +93,8 @@ export const batchUpsertScores = async (req: Request, res: Response, next: NextF
       if (!sc.studentId || !sc.subjectId || sc.caScore === undefined || sc.examScore === undefined || !sc.term) {
         return next(createError('Each score must have studentId, subjectId, caScore, examScore, term'));
       }
-      if (sc.caScore < 0 || sc.caScore > 40) return next(createError(`caScore ${sc.caScore} out of range (0-40)`));
-      if (sc.examScore < 0 || sc.examScore > 60) return next(createError(`examScore ${sc.examScore} out of range (0-60)`));
+// Removed caScore validation (0-40) to allow any value
+// Removed examScore validation (0-60) to allow any value
     }
 
     const client = await pool.connect();
@@ -127,23 +127,23 @@ export const updateScore = async (req: Request, res: Response, next: NextFunctio
   try {
     const { caScore, examScore } = req.body;
     const { id } = req.params;
-    if (caScore !== undefined && (caScore < 0 || caScore > 40)) return next(createError('caScore must be between 0 and 40'));
-    if (examScore !== undefined && (examScore < 0 || examScore > 60)) return next(createError('examScore must be between 0 and 60'));
-    
+// Removed caScore range validation
+// Removed examScore range validation
+
     const fields = [];
     const params = [];
     if (caScore !== undefined) { params.push(Number(caScore)); fields.push(`"caScore" = $${params.length}`); }
     if (examScore !== undefined) { params.push(Number(examScore)); fields.push(`"examScore" = $${params.length}`); }
-    
+
     if (fields.length === 0) return res.json(await (await query(`SELECT * FROM "Score" WHERE id = $1`, [id])).rows[0]);
-    
+
     fields.push(`"updatedAt" = CURRENT_TIMESTAMP`);
     params.push(id);
-    
+
     const result = await query(`
       UPDATE "Score" SET ${fields.join(', ')} WHERE id = $${params.length} RETURNING *
     `, params);
-    
+
     if (result.rows.length === 0) return next(createError('Score not found', 404));
     res.json(result.rows[0]);
   } catch (err: any) {
@@ -188,16 +188,16 @@ export const getStreamRankings = async (req: Request, res: Response, next: NextF
       const matched = gradingScale.find(g => avg >= g.minScore && avg <= g.maxScore);
       const grade = matched?.grade || (avg >= 80 ? 'A' : avg >= 40 ? 'E' : 'F');
       const remark = matched?.remark || (avg >= 40 ? 'Pass' : 'Fail');
-      return { 
-        studentId: student.id, 
-        admissionNumber: student.admissionNumber, 
-        firstName: student.firstName, 
-        lastName: student.lastName, 
-        totalMarks, 
-        averageScore: Math.round(avg * 100) / 100, 
-        grade, 
-        remark, 
-        subjectsCount 
+      return {
+        studentId: student.id,
+        admissionNumber: student.admissionNumber,
+        firstName: student.firstName,
+        lastName: student.lastName,
+        totalMarks,
+        averageScore: Math.round(avg * 100) / 100,
+        grade,
+        remark,
+        subjectsCount
       };
     }).sort((a, b) => b.totalMarks - a.totalMarks)
       .map((r, i) => ({ ...r, rank: i + 1 }));
