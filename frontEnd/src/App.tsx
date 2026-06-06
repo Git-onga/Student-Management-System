@@ -8,7 +8,8 @@ import { Streams } from './pages/Streams';
 import { Students } from './pages/Students';
 import { Subjects } from './pages/Subjects';
 import { Assessments } from './pages/Assessments';
-import { Book, Users, BookOpen, GraduationCap, Edit3, Sun, Moon } from 'lucide-react';
+import { UnifiedTimetable } from './pages/UnifiedTimetable';
+import { Book, Users, BookOpen, GraduationCap, Edit3, Sun, Moon, Calendar } from 'lucide-react';
 
 const App: React.FC = () => {
   const [activePage, setActivePage] = useState('dashboard');
@@ -30,6 +31,8 @@ const App: React.FC = () => {
         setActivePage('students');
       } else if (segment === 'assessments') {
         setActivePage('assessments');
+      } else if (segment === 'timetable') {
+        setActivePage('timetable');
       } else if (segment === 'dashboard') {
         setActivePage('dashboard');
       }
@@ -63,6 +66,7 @@ const App: React.FC = () => {
     { id: 'students', label: 'Students', icon: <Users size={18} /> },
     { id: 'subjects', label: 'Subjects', icon: <BookOpen size={18} /> },
     { id: 'assessments', label: 'Assessments', icon: <Edit3 size={18} /> },
+    { id: 'timetable', label: 'Timetable', icon: <Calendar size={18} /> },
   ];
 
   const renderPage = () => {
@@ -79,6 +83,8 @@ const App: React.FC = () => {
         return <Subjects />;
       case 'assessments':
         return <Assessments />;
+      case 'timetable':
+        return <UnifiedTimetable />;
       default:
         return <Dashboard onNavigate={(page) => setActivePage(page)} />;
     }
@@ -131,6 +137,7 @@ const App: React.FC = () => {
             <Route path="/students" element={<Students />} />
             <Route path="/subjects" element={<Subjects />} />
             <Route path="/assessments" element={<Assessments />} />
+            <Route path="/timetable" element={<UnifiedTimetable />} />
             <Route path="/stream-detail/:streamId" element={<StreamDetailPage />} />
             <Route path="/subject-detail/:subjectId" element={<SubjectDetailPage />} />
             <Route path="*" element={renderPage()} />

@@ -1,4 +1,4 @@
-import type { Stream, Student, Subject, Score, Teacher, GradingScale } from './db';
+import type { Stream, Student, Subject, Score, Teacher, GradingScale, TimetableSlot } from './db';
 
 const API_BASE_URL = 'http://localhost:3000/api';
 
@@ -344,6 +344,37 @@ export const api = {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
+      })
+    );
+  },
+
+  // Unified Timetable
+  getUnifiedTimetable: async (): Promise<TimetableSlot[]> => {
+    return handleResponse<TimetableSlot[]>(await fetch(`${API_BASE_URL}/timetable`));
+  },
+
+  generateUnifiedTimetable: async (): Promise<{ message: string; warnings: string[]; slots: TimetableSlot[] }> => {
+    return handleResponse<{ message: string; warnings: string[]; slots: TimetableSlot[] }>(
+      await fetch(`${API_BASE_URL}/timetable/generate`, {
+        method: 'POST',
+      })
+    );
+  },
+
+  createUnifiedTimetableSlot: async (subjectId: string, teacherId: string, streamId: string, day: string, period: number): Promise<TimetableSlot> => {
+    return handleResponse<TimetableSlot>(
+      await fetch(`${API_BASE_URL}/timetable`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subjectId, teacherId, streamId, day, period }),
+      })
+    );
+  },
+
+  deleteUnifiedTimetableSlot: async (slotId: string): Promise<{ message: string }> => {
+    return handleResponse<{ message: string }>(
+      await fetch(`${API_BASE_URL}/timetable/${slotId}`, {
+        method: 'DELETE',
       })
     );
   },

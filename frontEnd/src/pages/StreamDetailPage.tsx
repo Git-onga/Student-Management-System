@@ -44,6 +44,8 @@ export const StreamDetailPage: React.FC = () => {
     !assignedClassTeacherEmpIDs.has(t.empID) || t.empID === stream?.empID
   );
   const classCaptainOptions = activeStudents.filter(student => student.status === 'active');
+  const currentAssignedSubjects = allSubjects.filter(subject => assignedSubjectIds.includes(subject.id));
+  const availableSubjects = allSubjects.filter(subject => !assignedSubjectIds.includes(subject.id));
 
   const fetchStreamData = async () => {
     if (!streamId) return;
@@ -171,12 +173,6 @@ export const StreamDetailPage: React.FC = () => {
     if (streamId) {
       await generateClassPerformancePDF(streamId, 'Term 1 2026');
     }
-  };
-
-  const handleToggleSubjectAssignment = (subjectId: string) => {
-    setAssignedSubjectIds(prev =>
-      prev.includes(subjectId) ? prev.filter(id => id !== subjectId) : [...prev, subjectId]
-    );
   };
 
   const handleSaveSubjectsAssignment = async () => {
@@ -352,7 +348,11 @@ export const StreamDetailPage: React.FC = () => {
                   </div>
                   <div style={{ display: 'flex', gap: '8px' }}>
                     <span style={{ fontWeight: '600', color: 'var(--text-main)', fontSize: '13.5px', minWidth: '110px' }}>Subjects</span>
-                    <span style={{ color: 'var(--text-muted)', fontSize: '13.5px' }}>{stream.subject || 'N/A'}</span>
+                    <span style={{ color: 'var(--text-muted)', fontSize: '13.5px' }}>
+                      {currentAssignedSubjects.length > 0
+                        ? currentAssignedSubjects.map(subject => subject.name).join(', ')
+                        : stream.subject || 'N/A'}
+                    </span>
                   </div>
                   <div />
                   <div style={{ display: 'flex', gap: '8px' }}>
@@ -468,12 +468,45 @@ export const StreamDetailPage: React.FC = () => {
         {detailTab === 'subjects' && (
           <div>
             <p style={{ fontSize: '13.5px', color: 'var(--text-muted)', marginBottom: '20px' }}>
-              Toggle which subjects are offered by <strong>{stream.name}</strong>. Score entries will only be allowed for assigned subjects.
+              Select subjects for <strong>{stream.name}</strong> and save them to update class details. Assigned subjects will no longer appear in the curriculum selection.
             </p>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '16px', marginBottom: '24px' }}>
-              {allSubjects.map(subject => {
-                const isAssigned = assignedSubjectIds.includes(subject.id);
-                return (
+            {currentAssignedSubjects.length > 0 && (
+              <div style={{ marginBottom: '24px' }}>
+                <h4 style={{ margin: '0 0 12px', fontSize: '15px' }}>Assigned Subjects</h4>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '16px' }}>
+                  {currentAssignedSubjects.map(subject => (
+                    <div
+                      key={subject.id}
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        gap: '12px',
+                        padding: '16px',
+                        background: 'rgba(255,255,255,0.03)',
+                        border: '1px solid var(--border-color)',
+                        borderRadius: '8px',
+                      }}
+                    >
+                      <div>
+                        <div style={{ fontWeight: 'bold', fontSize: '13px' }}>{subject.name}</div>
+                        <div style={{ fontSize: '11px', color: 'var(--text-dim)' }}>{subject.code}</div>
+                      </div>
+                      <button
+                        className="btn btn-secondary"
+                        type="button"
+                        onClick={() => setAssignedSubjectIds(prev => prev.filter(id => id !== subject.id))}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {availableSubjects.length > 0 ? (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '16px', marginBottom: '24px' }}>
+                {availableSubjects.map(subject => (
                   <div
                     key={subject.id}
                     style={{
@@ -486,21 +519,21 @@ export const StreamDetailPage: React.FC = () => {
                       borderRadius: '8px',
                       cursor: 'pointer',
                     }}
-                    onClick={() => handleToggleSubjectAssignment(subject.id)}
+                    onClick={() => setAssignedSubjectIds(prev => [...prev, subject.id])}
                   >
-                    {isAssigned ? (
-                      <CheckSquare size={18} style={{ color: 'var(--color-primary)' }} />
-                    ) : (
-                      <Square size={18} style={{ color: 'var(--text-dim)' }} />
-                    )}
+                    <Square size={18} style={{ color: 'var(--text-dim)' }} />
                     <div>
                       <div style={{ fontWeight: 'bold', fontSize: '13px' }}>{subject.name}</div>
                       <div style={{ fontSize: '11px', color: 'var(--text-dim)' }}>{subject.code}</div>
                     </div>
                   </div>
-                );
-              })}
-            </div>
+                ))}
+              </div>
+            ) : (
+              <p style={{ color: 'var(--text-muted)', marginBottom: '24px' }}>
+                All available subjects are already assigned to this stream.
+              </p>
+            )}
             <button className="btn btn-primary" onClick={handleSaveSubjectsAssignment}>Save Subject Settings</button>
           </div>
         )}

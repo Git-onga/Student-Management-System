@@ -579,72 +579,7 @@ export const SubjectDetailPage: React.FC = () => {
         </div>
       </div>
 
-      {/* NEW SECTIONS: MANAGE TEACHERS, CLASS ALLOCATION, AND TIMETABLE */}
-
-      {/* MANAGE SUBJECT TEACHERS SECTION */}
-      <div className="panel" style={{ marginBottom: '24px', marginTop: '24px' }}>
-        <h3 style={{ fontSize: '18px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
-          <Users size={18} /> Manage Subject Teachers
-        </h3>
-        
-        <div style={{ display: 'flex', gap: '12px', marginBottom: '16px', flexWrap: 'wrap' }}>
-          <select
-            className="form-control"
-            value={selectedTeacherForAssignment}
-            onChange={(e) => setSelectedTeacherForAssignment(e.target.value)}
-            style={{ flex: 1, minWidth: '200px' }}
-          >
-            <option value="">Select a teacher to add...</option>
-            {allTeachers.filter(t => !classAssignments.find(a => a.teacherId === t.id)).map(teacher => (
-              <option key={teacher.id} value={teacher.id}>{teacher.name} ({teacher.empID})</option>
-            ))}
-          </select>
-          <button 
-            className="btn btn-primary" 
-            onClick={handleCreateClassAssignment}
-            disabled={!selectedTeacherForAssignment}
-          >
-            <Plus size={16} /> Add Teacher
-          </button>
-        </div>
-
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '12px' }}>
-          {classAssignments.map(assignment => (
-            <div 
-              key={assignment.id}
-              style={{
-                padding: '12px',
-                borderRadius: '8px',
-                border: '1px solid var(--border-color)',
-                background: 'rgba(255,255,255,0.01)',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center'
-              }}
-            >
-              <div>
-                <div style={{ fontWeight: 'bold', fontSize: '13px' }}>{assignment.teacher?.name}</div>
-                <div style={{ fontSize: '11px', color: 'var(--text-dim)', marginTop: '4px' }}>ID: {assignment.teacher?.empID}</div>
-              </div>
-              <button 
-                className="btn btn-ghost" 
-                onClick={() => handleDeleteClassAssignment(assignment.id)}
-                style={{ padding: '4px 8px', color: 'var(--color-accent)' }}
-              >
-                <X size={14} />
-              </button>
-            </div>
-          ))}
-          {classAssignments.length === 0 && (
-            <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '20px', color: 'var(--text-dim)', fontSize: '13px', fontStyle: 'italic' }}>
-              No teachers assigned yet.
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* CLASS ALLOCATION SECTION */}
-      <div className="panel" style={{ marginBottom: '24px' }}>
+      <div className="panel" style={{marginTop:'24px', marginBottom: '24px' }}>
         <h3 style={{ fontSize: '18px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
           <Layers size={18} /> Class Allocation
         </h3>
@@ -686,29 +621,28 @@ export const SubjectDetailPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Allocation Grid */}
-        <div style={{ overflowX: 'auto' }}>
-          <table className="custom-table" style={{ marginBottom: 0 }}>
+        <div style={{ overflowX: 'auto', overflowY: 'auto', maxHeight: '500px', width: '100%', border: '1px solid var(--border-color)', borderRadius: '8px' }}>
+          <table className="custom-table" style={{ width: 'max-content', minWidth: '100%', marginBottom: 0 }}>
             <thead>
               <tr>
-                <th>Teacher Name</th>
-                <th>Emp ID</th>
+                <th style={{ minWidth: '160px', whiteSpace: 'nowrap', position: 'sticky', left: 0, background: 'var(--bg-panel)', zIndex: 2 }}>Teacher Name</th>
+                <th style={{ minWidth: '100px', whiteSpace: 'nowrap', position: 'sticky', left: '160px', background: 'var(--bg-panel)', zIndex: 2 }}>Emp ID</th>
                 {assignedStreams.map(stream => (
-                  <th key={stream.id} style={{ textAlign: 'center' }}>{stream.name}</th>
+                  <th key={stream.id} style={{ textAlign: 'center', minWidth: '140px', whiteSpace: 'nowrap' }}>{stream.name}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {allTeachers.length > 0 ? allTeachers.map(teacher => (
                 <tr key={teacher.id}>
-                  <td style={{ fontWeight: 'bold' }}>{teacher.name}</td>
-                  <td style={{ fontSize: '12px', color: 'var(--text-dim)' }}>{teacher.empID}</td>
+                  <td style={{ fontWeight: 'bold', whiteSpace: 'nowrap', position: 'sticky', left: 0, background: 'var(--bg-panel)', zIndex: 1 }}>{teacher.name}</td>
+                  <td style={{ fontSize: '12px', color: 'var(--text-dim)', whiteSpace: 'nowrap', position: 'sticky', left: '160px', background: 'var(--bg-panel)', zIndex: 1 }}>{teacher.empID}</td>
                   {assignedStreams.map(stream => {
                     const hasAssignment = classAssignments.find(
                       a => a.teacherId === teacher.id && a.streamId === stream.id
                     );
                     return (
-                      <td key={stream.id} style={{ textAlign: 'center' }}>
+                      <td key={stream.id} style={{ textAlign: 'center', minWidth: '140px', whiteSpace: 'nowrap' }}>
                         {hasAssignment ? (
                           <span style={{ color: 'var(--color-success)', fontWeight: 'bold', fontSize: '12px' }}>✓ Assigned</span>
                         ) : (
@@ -728,164 +662,7 @@ export const SubjectDetailPage: React.FC = () => {
             </tbody>
           </table>
         </div>
-      </div>
-
-      {/* TEACHING TIMETABLE SECTION */}
-      <div className="panel" style={{ marginBottom: '24px' }}>
-        <h3 style={{ fontSize: '18px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
-          <Calendar size={18} /> Teaching Timetable
-        </h3>
-        
-        <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '16px' }}>
-          Standard school timetable (Monday–Friday, 8 periods per day). Click an empty cell to schedule a lesson.
-        </p>
-
-        <div style={{ overflowX: 'auto' }}>
-          <table className="custom-table" style={{ marginBottom: 0, minWidth: '600px' }}>
-            <thead>
-              <tr>
-                <th style={{ minWidth: '80px' }}>Period</th>
-                <th style={{ textAlign: 'center', minWidth: '120px' }}>Monday</th>
-                <th style={{ textAlign: 'center', minWidth: '120px' }}>Tuesday</th>
-                <th style={{ textAlign: 'center', minWidth: '120px' }}>Wednesday</th>
-                <th style={{ textAlign: 'center', minWidth: '120px' }}>Thursday</th>
-                <th style={{ textAlign: 'center', minWidth: '120px' }}>Friday</th>
-              </tr>
-            </thead>
-            <tbody>
-              {Array.from({ length: 8 }, (_, i) => i + 1).map(period => (
-                <tr key={period}>
-                  <td style={{ fontWeight: 'bold', background: 'rgba(255,255,255,0.02)' }}>Period {period}</td>
-                  {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'].map(day => {
-                    const slot = timetableSlots.find(s => s.day === day && s.period === period);
-                    const cellId = `${day}-${period}`;
-                    
-                    return (
-                      <td 
-                        key={cellId}
-                        style={{ 
-                          textAlign: 'center', 
-                          cursor: 'pointer',
-                          padding: '8px',
-                          background: slot ? 'rgba(16, 185, 129, 0.08)' : 'transparent',
-                          border: slot ? '1px solid rgba(16, 185, 129, 0.2)' : '1px solid transparent',
-                          borderRadius: '4px',
-                          minHeight: '50px',
-                          display: 'flex',
-                          flexDirection: 'column',
-                          justifyContent: 'center',
-                          alignItems: 'center',
-                          gap: '4px',
-                          position: 'relative'
-                        }}
-                        onClick={() => !slot && setTimetablePopoverOpen(cellId)}
-                      >
-                        {slot ? (
-                          <>
-                            <div style={{ fontWeight: 'bold', fontSize: '12px', color: 'var(--color-success)' }}>
-                              {slot.teacher?.name.split(' ')[0]}
-                            </div>
-                            <div style={{ fontSize: '11px', color: 'var(--text-dim)' }}>
-                              {slot.stream?.name}
-                            </div>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDeleteTimetableSlot(slot.id);
-                              }}
-                              style={{
-                                background: 'transparent',
-                                border: 'none',
-                                color: 'var(--color-accent)',
-                                cursor: 'pointer',
-                                fontSize: '10px',
-                                padding: '2px 4px',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '2px'
-                              }}
-                            >
-                              <X size={10} /> Remove
-                            </button>
-                          </>
-                        ) : (
-                          <div style={{ fontSize: '11px', color: 'var(--text-dim)', fontStyle: 'italic' }}>
-                            Click to add
-                          </div>
-                        )}
-                        
-                        {timetablePopoverOpen === cellId && (
-                          <div style={{
-                            position: 'absolute',
-                            top: '100%',
-                            left: '50%',
-                            transform: 'translateX(-50%)',
-                            background: 'var(--bg-panel)',
-                            border: '1px solid var(--border-color)',
-                            borderRadius: '8px',
-                            padding: '12px',
-                            marginTop: '8px',
-                            zIndex: 1000,
-                            minWidth: '220px',
-                            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            gap: '8px'
-                          }}>
-                            <select
-                              className="form-control"
-                              value={selectedTeacherForTimetable}
-                              onChange={(e) => setSelectedTeacherForTimetable(e.target.value)}
-                              style={{ fontSize: '12px', padding: '6px' }}
-                            >
-                              <option value="">Teacher...</option>
-                              {allTeachers.map(teacher => (
-                                <option key={teacher.id} value={teacher.id}>{teacher.name}</option>
-                              ))}
-                            </select>
-                            <select
-                              className="form-control"
-                              value={selectedStreamForTimetable}
-                              onChange={(e) => setSelectedStreamForTimetable(e.target.value)}
-                              style={{ fontSize: '12px', padding: '6px' }}
-                            >
-                              <option value="">Stream...</option>
-                              {assignedStreams.map(stream => (
-                                <option key={stream.id} value={stream.id}>{stream.name}</option>
-                              ))}
-                            </select>
-                            <div style={{ display: 'flex', gap: '6px' }}>
-                              <button
-                                className="btn btn-primary"
-                                onClick={handleCreateTimetableSlot}
-                                disabled={!selectedTeacherForTimetable || !selectedStreamForTimetable}
-                                style={{ flex: 1, fontSize: '12px', padding: '6px' }}
-                              >
-                                Schedule
-                              </button>
-                              <button
-                                className="btn btn-secondary"
-                                onClick={() => {
-                                  setTimetablePopoverOpen(null);
-                                  setSelectedTeacherForTimetable('');
-                                  setSelectedStreamForTimetable('');
-                                }}
-                                style={{ fontSize: '12px', padding: '6px' }}
-                              >
-                                Cancel
-                              </button>
-                            </div>
-                          </div>
-                        )}
-                      </td>
-                    );
-                  })}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      </div>      
     </>
   );
 };

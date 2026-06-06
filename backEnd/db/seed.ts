@@ -203,6 +203,31 @@ async function main() {
     }
     console.log(`  ✔ ${scoreData.length} Scores seeded`);
 
+    // ── TeacherClassAssignment ──────────────────────────────────────────────────
+    const assignmentsData = [
+      // Form 1 Stanford (str-1)
+      ['tch-1', 'sub-1', 'str-1'], // Mr. Kamau - Mathematics
+      ['tch-2', 'sub-2', 'str-1'], // Mrs. Ann - English Language
+      // Form 1 Cambridge (str-2)
+      ['tch-5', 'sub-1', 'str-2'], // Mr. Ochieng - Mathematics
+      ['tch-6', 'sub-2', 'str-2'], // Mrs. Atieno - English Language
+      // Form 1 Oxford (str-3)
+      ['tch-13', 'sub-1', 'str-3'], // Mr. Kimani - Mathematics
+      ['tch-10', 'sub-2', 'str-3'], // Mrs. Chebet - English Language
+      ['tch-3', 'sub-7', 'str-3'], // Mr. Kariuki - Kiswahili
+      // Form 1 Yale (str-4)
+      ['tch-1', 'sub-1', 'str-4'], // Mr. Kamau - Mathematics
+      ['tch-2', 'sub-2', 'str-4'], // Mrs. Ann - English Language
+      ['tch-4', 'sub-8', 'str-4'], // Mrs. Biwott - Physics
+    ];
+    for (const a of assignmentsData) {
+      await client.query(`
+        INSERT INTO "TeacherClassAssignment" ("teacherId", "subjectId", "streamId")
+        VALUES ($1, $2, $3)
+      `, a);
+    }
+    console.log(`  ✔ ${assignmentsData.length} TeacherClassAssignments seeded`);
+
     await client.query('COMMIT');
     console.log('\n✅ Database seeded successfully!');
 

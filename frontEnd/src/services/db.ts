@@ -61,6 +61,19 @@ export interface GradingScale {
   remark: string;
 }
 
+export interface TimetableSlot {
+  id: string;
+  teacherId: string;
+  subjectId: string;
+  streamId: string;
+  day: string;
+  period: number;
+  teacher?: Teacher;
+  subject?: Subject;
+  stream?: Stream;
+  createdAt?: string;
+}
+
 const STORAGE_KEYS = {
   STREAMS: 'ikx_streams',
   STUDENTS: 'ikx_students',

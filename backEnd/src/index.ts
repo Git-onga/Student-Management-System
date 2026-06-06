@@ -9,6 +9,7 @@ import subjectRoutes from './routes/subjects';
 import teacherRoutes from './routes/teachers';
 import scoreRoutes from './routes/scores';
 import gradingScaleRoutes from './routes/gradingScale';
+import timetableRoutes from './routes/timetable';
 import { errorHandler } from './middleware/errorHandler';
 
 dotenv.config();
@@ -36,6 +37,7 @@ app.use('/api/subjects', subjectRoutes);
 app.use('/api/teachers', teacherRoutes);
 app.use('/api/scores', scoreRoutes);
 app.use('/api/grading-scale', gradingScaleRoutes);
+app.use('/api/timetable', timetableRoutes);
 
 // ── 404 Handler ────────────────────────────────────────────────────────────────
 app.use((_req, res) => {
