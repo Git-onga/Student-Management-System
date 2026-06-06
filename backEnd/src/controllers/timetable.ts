@@ -36,10 +36,14 @@ export const createClassAssignment = async (req: Request, res: Response, next: N
       return next(createError('Subject not found', 404));
     }
 
-    // Verify teacher exists
-    const teacherRes = await query(`SELECT id FROM "Teacher" WHERE id = $1`, [teacherId]);
+    // Verify teacher exists and teaches this subject
+    const teacherRes = await query(`SELECT "subjectOneId", "subjectTwoId" FROM "Teacher" WHERE id = $1`, [teacherId]);
     if (teacherRes.rows.length === 0) {
       return next(createError('Teacher not found', 404));
+    }
+    const { subjectOneId, subjectTwoId } = teacherRes.rows[0];
+    if (subjectOneId !== id && subjectTwoId !== id) {
+      return next(createError('Selected teacher does not teach this subject'));
     }
 
     // Verify stream exists
@@ -89,11 +93,33 @@ export const getSubjectTimetable = async (req: Request, res: Response, next: Nex
     const result = await query(`
       SELECT tt.*,
         row_to_json(t.*) as teacher,
+        row_to_json(s.*) as subject,
         row_to_json(str.*) as stream
       FROM "Timetable" tt
       LEFT JOIN "Teacher" t ON tt."teacherId" = t.id
+      LEFT JOIN "Subject" s ON tt."subjectId" = s.id
       LEFT JOIN "Stream" str ON tt."streamId" = str.id
       WHERE tt."subjectId" = $1
+      ORDER BY tt.day ASC, tt.period ASC
+    `, [id]);
+    res.json(result.rows);
+  } catch (err) { next(err); }
+};
+
+// GET /api/streams/:id/timetable
+export const getStreamTimetable = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { id } = req.params;
+    const result = await query(`
+      SELECT tt.*,
+        row_to_json(t.*) as teacher,
+        row_to_json(s.*) as subject,
+        row_to_json(str.*) as stream
+      FROM "Timetable" tt
+      LEFT JOIN "Teacher" t ON tt."teacherId" = t.id
+      LEFT JOIN "Subject" s ON tt."subjectId" = s.id
+      LEFT JOIN "Stream" str ON tt."streamId" = str.id
+      WHERE tt."streamId" = $1
       ORDER BY tt.day ASC, tt.period ASC
     `, [id]);
     res.json(result.rows);
@@ -125,10 +151,14 @@ export const createTimetableSlot = async (req: Request, res: Response, next: Nex
       return next(createError('Subject not found', 404));
     }
 
-    // Verify teacher exists
-    const teacherRes = await query(`SELECT id FROM "Teacher" WHERE id = $1`, [teacherId]);
+    // Verify teacher exists and teaches this subject
+    const teacherRes = await query(`SELECT "subjectOneId", "subjectTwoId" FROM "Teacher" WHERE id = $1`, [teacherId]);
     if (teacherRes.rows.length === 0) {
       return next(createError('Teacher not found', 404));
+    }
+    const { subjectOneId, subjectTwoId } = teacherRes.rows[0];
+    if (subjectOneId !== id && subjectTwoId !== id) {
+      return next(createError('Selected teacher does not teach this subject'));
     }
 
     // Verify stream exists

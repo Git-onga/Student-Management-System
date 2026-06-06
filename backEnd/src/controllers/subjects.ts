@@ -9,7 +9,7 @@ export const getAllSubjects = async (_req: Request, res: Response, next: NextFun
       SELECT s.*,
         COALESCE(
           (SELECT json_agg(json_build_object('id', t.id, 'empID', t."empID", 'name', t.name, 'telephone', t.telephone))
-           FROM "Teacher" t WHERE t."subjectId" = s.id),
+           FROM "Teacher" t WHERE (t."subjectOneId" = s.id OR t."subjectTwoId" = s.id)),
         '[]'::json) as teachers,
         COALESCE(
           (SELECT json_agg(json_build_object('teacher', row_to_json(t.*)))
@@ -40,7 +40,7 @@ export const getSubjectById = async (req: Request, res: Response, next: NextFunc
       SELECT s.*,
         COALESCE(
           (SELECT json_agg(row_to_json(t.*))
-           FROM "Teacher" t WHERE t."subjectId" = s.id),
+           FROM "Teacher" t WHERE (t."subjectOneId" = s.id OR t."subjectTwoId" = s.id)),
         '[]'::json) as teachers,
         COALESCE(
           (SELECT json_agg(json_build_object('teacher', row_to_json(t.*)))

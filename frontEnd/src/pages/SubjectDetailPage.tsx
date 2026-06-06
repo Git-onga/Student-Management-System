@@ -128,7 +128,7 @@ export const SubjectDetailPage: React.FC = () => {
       // Fetch all teachers and streams for dropdowns
       const teachers = await api.getTeachers();
       // Filter to only show teachers teaching this specific subject
-      const filteredTeachers = teachers.filter(t => t.subjectId === subjectId);
+      const filteredTeachers = teachers.filter(t => t.subjectOneId === subjectId || t.subjectTwoId === subjectId);
       setAllTeachers(filteredTeachers);
 
       const streams = await api.getStreams();

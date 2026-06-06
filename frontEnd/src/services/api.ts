@@ -21,6 +21,12 @@ export const api = {
       await fetch(`${API_BASE_URL}/streams/${id}`)
     );
   },
+
+  getStreamTimetable: async (streamId: string): Promise<any[]> => {
+    return handleResponse<any[]>(
+      await fetch(`${API_BASE_URL}/streams/${streamId}/timetable`)
+    );
+  },
   
   createStream: async (stream: Omit<Stream, 'id'>): Promise<Stream> => {
     return handleResponse<Stream>(

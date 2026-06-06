@@ -46,8 +46,12 @@ export interface Teacher {
   id: string;
   empID: string;
   name: string;
-  subjectId: string;
+  subjectOneId: string;
+  subjectTwoId: string;
   telephone: string;
+  subjectOne?: Subject;
+  subjectTwo?: Subject;
+  lessonCount?: number;
 }
 
 export interface GradingScale {
@@ -89,22 +93,22 @@ const DEFAULT_STREAMS: Stream[] = [
 ];
 
 const DEFAULT_TEACHERS: Teacher[] = [
-  { id: 'tch-1', empID: 'Tch101', name: 'Mr. Kamau', subjectId: 'sub-1', telephone: '0725658989' },
-  { id: 'tch-2', empID: 'Tch102', name: 'Mrs. Ann', subjectId: 'sub-2', telephone: '0712345566' },
-  { id: 'tch-3', empID: 'Tch103', name: 'Mr. Kariuki', subjectId: 'sub-7', telephone: '0723131344' },
-  { id: 'tch-4', empID: 'Tch104', name: 'Mrs. Biwott', subjectId: 'sub-8', telephone: '0745657878' },
-  { id: 'tch-5', empID: 'Tch105', name: 'Mr. Ochieng', subjectId: 'sub-1', telephone: '079314813' },
-  { id: 'tch-6', empID: 'Tch106', name: 'Mrs. Atieno', subjectId: 'sub-2', telephone: '0734218965' },
-  { id: 'tch-7', empID: 'Tch107', name: 'Mr. Bundi', subjectId: 'sub-7', telephone: '0712345568' },
-  { id: 'tch-8', empID: 'Tch108', name: 'Mrs. Komen', subjectId: 'sub-9', telephone: '0745657880' },
-  { id: 'tch-9', empID: 'Tch109', name: 'Mr. Kimani', subjectId: 'sub-10', telephone: '0712345901' },
-  { id: 'tch-10', empID: 'Tch110', name: 'Mrs. Chebet', subjectId: 'sub-2', telephone: '0734218562' },
-  { id: 'tch-11', empID: 'Tch111', name: 'Mr. Juma', subjectId: 'sub-7', telephone: '0712345579' },
-  { id: 'tch-12', empID: 'Tch112', name: 'Ms. Juma', subjectId: 'sub-11', telephone: '0745657883' },
-  { id: 'tch-13', empID: 'Tch113', name: 'Mr. Kimani', subjectId: 'sub-1', telephone: '0712345901' },
-  { id: 'tch-14', empID: 'Tch114', name: 'Mrs. Chebet', subjectId: 'sub-11', telephone: '0734218562' },
-  { id: 'tch-15', empID: 'Tch115', name: 'Mr. Juma', subjectId: 'sub-7', telephone: '0712345579' },
-  { id: 'tch-16', empID: 'Tch116', name: 'Ms. Juma', subjectId: 'sub-8', telephone: '0745657883' },
+  { id: 'tch-1', empID: 'Tch101', name: 'Mr. Kamau', subjectOneId: 'sub-1', subjectTwoId: 'sub-2', telephone: '0725658989' },
+  { id: 'tch-2', empID: 'Tch102', name: 'Mrs. Ann', subjectOneId: 'sub-2', subjectTwoId: 'sub-3', telephone: '0712345566' },
+  { id: 'tch-3', empID: 'Tch103', name: 'Mr. Kariuki', subjectOneId: 'sub-7', subjectTwoId: 'sub-8', telephone: '0723131344' },
+  { id: 'tch-4', empID: 'Tch104', name: 'Mrs. Biwott', subjectOneId: 'sub-8', subjectTwoId: 'sub-11', telephone: '0745657878' },
+  { id: 'tch-5', empID: 'Tch105', name: 'Mr. Ochieng', subjectOneId: 'sub-1', subjectTwoId: 'sub-5', telephone: '079314813' },
+  { id: 'tch-6', empID: 'Tch106', name: 'Mrs. Atieno', subjectOneId: 'sub-2', subjectTwoId: 'sub-4', telephone: '0734218965' },
+  { id: 'tch-7', empID: 'Tch107', name: 'Mr. Bundi', subjectOneId: 'sub-7', subjectTwoId: 'sub-10', telephone: '0712345568' },
+  { id: 'tch-8', empID: 'Tch108', name: 'Mrs. Komen', subjectOneId: 'sub-9', subjectTwoId: 'sub-2', telephone: '0745657880' },
+  { id: 'tch-9', empID: 'Tch109', name: 'Mr. Kimani', subjectOneId: 'sub-10', subjectTwoId: 'sub-1', telephone: '0712345901' },
+  { id: 'tch-10', empID: 'Tch110', name: 'Mrs. Chebet', subjectOneId: 'sub-2', subjectTwoId: 'sub-11', telephone: '0734218562' },
+  { id: 'tch-11', empID: 'Tch111', name: 'Mr. Juma', subjectOneId: 'sub-7', subjectTwoId: 'sub-5', telephone: '0712345579' },
+  { id: 'tch-12', empID: 'Tch112', name: 'Ms. Juma', subjectOneId: 'sub-11', subjectTwoId: 'sub-4', telephone: '0745657883' },
+  { id: 'tch-13', empID: 'Tch113', name: 'Mr. Kimani', subjectOneId: 'sub-1', subjectTwoId: 'sub-10', telephone: '0712345901' },
+  { id: 'tch-14', empID: 'Tch114', name: 'Mrs. Chebet', subjectOneId: 'sub-11', subjectTwoId: 'sub-2', telephone: '0734218562' },
+  { id: 'tch-15', empID: 'Tch115', name: 'Mr. Juma', subjectOneId: 'sub-7', subjectTwoId: 'sub-3', telephone: '0712345579' },
+  { id: 'tch-16', empID: 'Tch116', name: 'Ms. Juma', subjectOneId: 'sub-8', subjectTwoId: 'sub-6', telephone: '0745657883' },
 ];
 
 const DEFAULT_SUBJECTS: Subject[] = [

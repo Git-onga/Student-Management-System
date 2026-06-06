@@ -4,7 +4,8 @@ import { type Teacher, type Subject, type Stream } from '../services/db';
 import { Search, Plus, Edit3, Trash2, Loader2, BookOpen, Users, Calendar, CheckCircle2, X } from 'lucide-react';
 
 interface TeacherDetail extends Teacher {
-  subject?: Subject;
+  subjectOne?: Subject;
+  subjectTwo?: Subject;
   lessonCount?: number;
 }
 
@@ -24,7 +25,8 @@ export const Teachers: React.FC = () => {
 
   const [empID, setEmpID] = useState('');
   const [name, setName] = useState('');
-  const [subjectId, setSubjectId] = useState('');
+  const [subjectOneId, setSubjectOneId] = useState('');
+  const [subjectTwoId, setSubjectTwoId] = useState('');
   const [telephone, setTelephone] = useState('');
   const [formError, setFormError] = useState('');
 
@@ -40,7 +42,8 @@ export const Teachers: React.FC = () => {
       setTeachers(fetchedTeachers as TeacherDetail[]);
       setSubjects(fetchedSubjects);
       setStreams(fetchedStreams);
-      setSubjectId(fetchedSubjects[0]?.id || '');
+      setSubjectOneId(fetchedSubjects[0]?.id || '');
+      setSubjectTwoId(fetchedSubjects[1]?.id || fetchedSubjects[0]?.id || '');
     } catch (err: any) {
       console.error(err);
       setError(err.message || 'Failed to load teacher data');
@@ -56,7 +59,8 @@ export const Teachers: React.FC = () => {
   const resetForm = () => {
     setEmpID('');
     setName('');
-    setSubjectId(subjects[0]?.id || '');
+    setSubjectOneId(subjects[0]?.id || '');
+    setSubjectTwoId(subjects[1]?.id || subjects[0]?.id || '');
     setTelephone('');
     setFormError('');
     setEditingTeacher(null);
@@ -71,7 +75,8 @@ export const Teachers: React.FC = () => {
     setEditingTeacher(teacher);
     setEmpID(teacher.empID);
     setName(teacher.name);
-    setSubjectId(teacher.subjectId);
+    setSubjectOneId(teacher.subjectOneId);
+    setSubjectTwoId(teacher.subjectTwoId);
     setTelephone(teacher.telephone || '');
     setFormError('');
     setShowForm(true);
@@ -100,8 +105,12 @@ export const Teachers: React.FC = () => {
     event.preventDefault();
     setFormError('');
 
-    if (!empID.trim() || !name.trim() || !subjectId) {
-      setFormError('Employee ID, name and subject are required.');
+    if (!empID.trim() || !name.trim() || !subjectOneId || !subjectTwoId) {
+      setFormError('Employee ID, name and both subjects are required.');
+      return;
+    }
+    if (subjectOneId === subjectTwoId) {
+      setFormError('A teacher must teach two different subjects.');
       return;
     }
 
@@ -110,14 +119,16 @@ export const Teachers: React.FC = () => {
         await api.updateTeacher(editingTeacher.id, {
           empID: empID.trim(),
           name: name.trim(),
-          subjectId,
+          subjectOneId,
+          subjectTwoId,
           telephone: telephone.trim(),
         });
       } else {
         await api.createTeacher({
           empID: empID.trim(),
           name: name.trim(),
-          subjectId,
+          subjectOneId,
+          subjectTwoId,
           telephone: telephone.trim(),
         });
       }
@@ -143,12 +154,14 @@ export const Teachers: React.FC = () => {
   const filteredTeachers = teachers.filter(teacher => {
     const query = searchQuery.toLowerCase();
     const nameMatch = teacher.name.toLowerCase().includes(query) || teacher.empID.toLowerCase().includes(query);
-    const subjectMatch = selectedSubject === '' || teacher.subjectId === selectedSubject;
+    const subjectMatch = selectedSubject === '' || teacher.subjectOneId === selectedSubject || teacher.subjectTwoId === selectedSubject;
     return nameMatch && subjectMatch;
   });
 
   const totalLessons = teachers.reduce((sum, teacher) => sum + (teacher.lessonCount ?? 0), 0);
-  const distinctSubjects = new Set(teachers.map(t => t.subject?.id).filter(Boolean)).size;
+  const distinctSubjects = new Set(
+    teachers.flatMap(t => [t.subjectOne?.id, t.subjectTwo?.id]).filter(Boolean)
+  ).size;
 
   if (loading) {
     return (
@@ -266,7 +279,7 @@ export const Teachers: React.FC = () => {
                     <div style={{ fontWeight: 'bold' }}>{teacher.name}</div>
                     <div style={{ fontSize: '12px', color: 'var(--text-dim)' }}>{teacher.empID}</div>
                   </td>
-                  <td>{teacher.subject?.name || 'Unassigned'}</td>
+                  <td>{[teacher.subjectOne?.name, teacher.subjectTwo?.name].filter(Boolean).join(' / ') || 'Unassigned'}</td>
                   <td>{teacher.empID}</td>
                   <td>{teacher.telephone || '—'}</td>
                   <td style={{ textAlign: 'center' }}>
@@ -373,27 +386,32 @@ export const Teachers: React.FC = () => {
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
                   <div>
-                    <label className="form-label">Subject</label>
+                    <label className="form-label">Primary Subject</label>
                     <select
                       className="form-control"
-                      value={subjectId}
-                      onChange={(e) => setSubjectId(e.target.value)}
+                      value={subjectOneId}
+                      onChange={(e) => setSubjectOneId(e.target.value)}
                       style={{ height: '42px', padding: '0 12px' }}
                     >
-                      <option value="">Select subject</option>
+                      <option value="">Select primary subject</option>
                       {subjects.map(subject => (
                         <option key={subject.id} value={subject.id}>{subject.name}</option>
                       ))}
                     </select>
                   </div>
                   <div>
-                    <label className="form-label">Telephone</label>
-                    <input
+                    <label className="form-label">Secondary Subject</label>
+                    <select
                       className="form-control"
-                      value={telephone}
-                      onChange={(e) => setTelephone(e.target.value)}
-                      placeholder="Teacher phone number"
-                    />
+                      value={subjectTwoId}
+                      onChange={(e) => setSubjectTwoId(e.target.value)}
+                      style={{ height: '42px', padding: '0 12px' }}
+                    >
+                      <option value="">Select secondary subject</option>
+                      {subjects.map(subject => (
+                        <option key={subject.id} value={subject.id}>{subject.name}</option>
+                      ))}
+                    </select>
                   </div>
                 </div>
 
@@ -473,8 +491,12 @@ export const Teachers: React.FC = () => {
                       <p style={{ margin: 0, fontSize: '14px' }}>{selectedTeacherForDetails.empID}</p>
                     </div>
                     <div>
-                      <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>Subject</label>
-                      <p style={{ margin: 0, fontSize: '14px' }}>{selectedTeacherForDetails.subject?.name || 'Unassigned'}</p>
+                      <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>Subjects</label>
+                      <p style={{ margin: 0, fontSize: '14px' }}>
+                        {[selectedTeacherForDetails.subjectOne?.name, selectedTeacherForDetails.subjectTwo?.name]
+                          .filter(Boolean)
+                          .join(' / ') || 'Unassigned'}
+                      </p>
                     </div>
                     <div>
                       <label style={{ fontSize: '12px', fontWeight: '600', color: 'var(--text-muted)', display: 'block', marginBottom: '4px' }}>Telephone</label>
@@ -486,10 +508,10 @@ export const Teachers: React.FC = () => {
                 <div>
                   <h4 style={{ fontSize: '13px', fontWeight: '700', color: 'var(--text-dim)', margin: '0 0 12px 0' }}>RESPONSIBILITIES</h4>
                   <div style={{ display: 'grid', gap: '12px' }}>
-                    {getHeadOfSubjectStatus(selectedTeacherForDetails.id, selectedTeacherForDetails.subjectId) && (
+                    {getHeadOfSubjectStatus(selectedTeacherForDetails.id) && (
                       <div style={{ padding: '12px', background: 'rgba(168, 85, 247, 0.1)', border: '1px solid rgba(168, 85, 247, 0.2)', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
                         <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#a855f7' }}></div>
-                        <span style={{ fontSize: '14px' }}>Head of {selectedTeacherForDetails.subject?.name || 'Subject'}</span>
+                        <span style={{ fontSize: '14px' }}>Head of subject</span>
                       </div>
                     )}
                     {getClassTeacherStreams(selectedTeacherForDetails).length > 0 ? (

@@ -52,10 +52,13 @@ CREATE TABLE "Teacher" (
     "empID" VARCHAR(255) UNIQUE NOT NULL,
     "name" VARCHAR(255) NOT NULL,
     "telephone" VARCHAR(255) NOT NULL,
-    "subjectId" VARCHAR(255) NOT NULL,
+    "subjectOneId" VARCHAR(255) NOT NULL,
+    "subjectTwoId" VARCHAR(255) NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT "Teacher_subjectId_fkey" FOREIGN KEY ("subjectId") REFERENCES "Subject"("id") ON DELETE RESTRICT ON UPDATE CASCADE
+    CONSTRAINT "Teacher_subjectOneId_fkey" FOREIGN KEY ("subjectOneId") REFERENCES "Subject"("id") ON DELETE RESTRICT ON UPDATE CASCADE,
+    CONSTRAINT "Teacher_subjectTwoId_fkey" FOREIGN KEY ("subjectTwoId") REFERENCES "Subject"("id") ON DELETE RESTRICT ON UPDATE CASCADE,
+    CONSTRAINT "Teacher_subjectCombo_check" CHECK ("subjectOneId" <> "subjectTwoId")
 );
 
 CREATE TABLE "SubjectTeacher" (
